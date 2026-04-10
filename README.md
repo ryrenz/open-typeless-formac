@@ -20,6 +20,8 @@ Inspired by [Typeless](https://www.typeless.com/).
 
 ### 1. Build
 
+Download Xcode from the App Store if you don't have it.
+
 ```bash
 brew install xcodegen  # if not installed
 git clone https://github.com/scinttt/open-typeless-formac.git
