@@ -21,7 +21,7 @@
 		8B0CD5687619D8B38D365E95 /* HotkeyStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 24381B8AF2275F9837C6D2B0 /* HotkeyStore.swift */; };
 		8DE2A20EED78C691538082B9 /* App.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5796BD42C96BBC050ECA210A /* App.swift */; };
 		8E2ABB10CEE123CAA63BC008 /* AccessibilityHelper.swift in Sources */ = {isa = PBXBuildFile; fileRef = 62DDFAF0114BF7FD01DB87E3 /* AccessibilityHelper.swift */; };
-		90351E10B9B500391B07A372 /* WhisperKit in Frameworks */ = {isa = PBXBuildFile; productRef = F7E1340F65375CF54B93D5BD /* WhisperKit */; };
+		90351E10B9B500391B07A372 /* OpenAI in Frameworks */ = {isa = PBXBuildFile; productRef = B48718C9952536A0E084CEED /* OpenAI */; };
 		98FB88EC56F3A9EEE30D404F /* HotkeyManagerTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2D22EB1E3CFB846C07918331 /* HotkeyManagerTests.swift */; };
 		B254BF91918A26ADEEB2EFA1 /* TranscriptionServiceTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8D43E926297E99334837F80E /* TranscriptionServiceTests.swift */; };
 		BD38E6757E075D57D51EC9C7 /* AudioRecorderTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6A8F4EC1F9358BA1BD30539E /* AudioRecorderTests.swift */; };
@@ -84,7 +84,7 @@
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
-				90351E10B9B500391B07A372 /* WhisperKit in Frameworks */,
+				90351E10B9B500391B07A372 /* OpenAI in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -233,7 +233,7 @@
 			);
 			name = OpenTypeless;
 			packageProductDependencies = (
-				F7E1340F65375CF54B93D5BD /* WhisperKit */,
+				B48718C9952536A0E084CEED /* OpenAI */,
 			);
 			productName = OpenTypeless;
 			productReference = 0C152EF9B6F66F7308D0ECDA /* OpenTypeless.app */;
@@ -278,7 +278,7 @@
 			mainGroup = 4F219BC675784540A105291E;
 			minimizedProjectReferenceProxies = 1;
 			packageReferences = (
-				C4331E73280316B8A9605220 /* XCRemoteSwiftPackageReference "WhisperKit" */,
+				86D972A8EA41A96C9DE42823 /* XCRemoteSwiftPackageReference "OpenAI" */,
 			);
 			preferredProjectObjectVersion = 77;
 			productRefGroup = E9C04359331FACD7E4739CE9 /* Products */;
@@ -565,21 +565,21 @@
 /* End XCConfigurationList section */
 
 /* Begin XCRemoteSwiftPackageReference section */
-		C4331E73280316B8A9605220 /* XCRemoteSwiftPackageReference "WhisperKit" */ = {
+		86D972A8EA41A96C9DE42823 /* XCRemoteSwiftPackageReference "OpenAI" */ = {
 			isa = XCRemoteSwiftPackageReference;
-			repositoryURL = "https://github.com/argmaxinc/WhisperKit.git";
+			repositoryURL = "https://github.com/MacPaw/OpenAI.git";
 			requirement = {
-				kind = upToNextMajorVersion;
-				minimumVersion = 0.9.0;
+				branch = main;
+				kind = branch;
 			};
 		};
 /* End XCRemoteSwiftPackageReference section */
 
 /* Begin XCSwiftPackageProductDependency section */
-		F7E1340F65375CF54B93D5BD /* WhisperKit */ = {
+		B48718C9952536A0E084CEED /* OpenAI */ = {
 			isa = XCSwiftPackageProductDependency;
-			package = C4331E73280316B8A9605220 /* XCRemoteSwiftPackageReference "WhisperKit" */;
-			productName = WhisperKit;
+			package = 86D972A8EA41A96C9DE42823 /* XCRemoteSwiftPackageReference "OpenAI" */;
+			productName = OpenAI;
 		};
 /* End XCSwiftPackageProductDependency section */
 	};

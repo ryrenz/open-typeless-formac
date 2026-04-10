@@ -1,11 +1,106 @@
 import ServiceManagement
 import SwiftUI
 
-enum SettingsTab: String, CaseIterable {
-    case hotkeys = "Hotkeys"
-    case api = "API"
-    case test = "Test"
+// MARK: - Localization
+
+enum AppLanguage: String, CaseIterable {
+    case en = "en"
+    case zh = "zh"
+
+    var displayName: String {
+        switch self {
+        case .en: return "English"
+        case .zh: return "中文"
+        }
+    }
+
+    static var current: AppLanguage {
+        get {
+            let raw = UserDefaults.standard.string(forKey: "appLanguage") ?? "en"
+            return AppLanguage(rawValue: raw) ?? .en
+        }
+        set {
+            UserDefaults.standard.set(newValue.rawValue, forKey: "appLanguage")
+        }
+    }
 }
+
+struct L {
+    let lang: AppLanguage
+
+    // Tabs
+    var hotkeys: String { lang == .zh ? "快捷键" : "Hotkeys" }
+    var api: String { "API" }
+    var test: String { lang == .zh ? "测试" : "Test" }
+
+    // Permissions
+    var permissions: String { lang == .zh ? "权限" : "Permissions" }
+    var microphone: String { lang == .zh ? "麦克风" : "Microphone" }
+    var accessibility: String { lang == .zh ? "辅助功能" : "Accessibility" }
+    var grantAccess: String { lang == .zh ? "授权" : "Grant Access" }
+    var granted: String { lang == .zh ? "已授权" : "Granted" }
+    var accessibilityHint: String {
+        lang == .zh
+            ? "授权后如未生效，请在系统设置中删除旧条目后重新授权。"
+            : "After granting, remove the old entry and re-add via Grant Access."
+    }
+
+    // Hotkey
+    var hotkey: String { lang == .zh ? "快捷键" : "Hotkey" }
+    var transcribe: String { lang == .zh ? "转写：" : "Transcribe:" }
+    var hotkeyHint: String {
+        lang == .zh
+            ? "默认：右 Option (Alt)。按一下开始，再按停止。双击取消。"
+            : "Default: Right Option (Alt). Press once to start, press again to stop. Double-press to cancel."
+    }
+
+    // General
+    var general: String { lang == .zh ? "通用" : "General" }
+    var launchAtLogin: String { lang == .zh ? "登录时启动" : "Launch at Login" }
+    var language: String { lang == .zh ? "语言" : "Language" }
+
+    // API
+    var provider: String { lang == .zh ? "服务商" : "Provider" }
+    var apiKey: String { "API Key" }
+    var model: String { lang == .zh ? "模型" : "Model" }
+    var customHint: String {
+        lang == .zh
+            ? "必须是 OpenAI 兼容的 API 端点"
+            : "Must be an OpenAI-compatible API endpoint"
+    }
+
+    // Test
+    var recording: String { lang == .zh ? "录音" : "Recording" }
+    var result: String { lang == .zh ? "结果" : "Result" }
+    var status: String { lang == .zh ? "状态：" : "Status:" }
+    var testHint: String {
+        lang == .zh
+            ? "按快捷键开始录音，再按一下停止。"
+            : "Press your hotkey to start recording, press again to stop."
+    }
+
+    // Common
+    var save: String { lang == .zh ? "保存" : "Save" }
+    var saved: String { lang == .zh ? "已保存！" : "Saved!" }
+}
+
+// MARK: - Settings Tabs
+
+enum SettingsTab: String, CaseIterable {
+    case hotkeys
+    case api
+    case test
+
+    func label(_ l: L) -> String {
+        switch self {
+        case .hotkeys: return l.hotkeys
+        case .api: return l.api
+        case .test: return l.test
+        }
+    }
+}
+
+// MARK: - Main Window
 
 struct MainWindowView: View {
     @EnvironmentObject var appState: AppState
@@ -15,28 +110,47 @@ struct MainWindowView: View {
     let hotkeyManager: HotkeyManager
 
     @State private var selectedTab: SettingsTab = .hotkeys
+    @State private var appLanguage: AppLanguage = AppLanguage.current
+
+    private var l: L { L(lang: appLanguage) }
 
     var body: some View {
         NavigationSplitView {
-            List(SettingsTab.allCases, id: \.self, selection: $selectedTab) { tab in
-                Label(tab.rawValue, systemImage: tabIcon(tab))
+            VStack {
+                List(SettingsTab.allCases, id: \.self, selection: $selectedTab) { tab in
+                    Label(tab.label(l), systemImage: tabIcon(tab))
+                }
+                .listStyle(.sidebar)
+
+                Divider()
+
+                Picker("", selection: $appLanguage) {
+                    ForEach(AppLanguage.allCases, id: \.self) { lang in
+                        Text(lang.displayName).tag(lang)
+                    }
+                }
+                .pickerStyle(.segmented)
+                .padding(.horizontal, 12)
+                .padding(.bottom, 8)
+                .onChange(of: appLanguage) { _, newValue in
+                    AppLanguage.current = newValue
+                }
             }
-            .listStyle(.sidebar)
             .navigationSplitViewColumnWidth(min: 140, ideal: 160)
         } detail: {
             switch selectedTab {
             case .hotkeys:
-                HotkeysTabView(hotkeyManager: hotkeyManager)
+                HotkeysTabView(hotkeyManager: hotkeyManager, l: l)
                     .environmentObject(permissionManager)
             case .api:
-                APITabView()
+                APITabView(l: l)
             case .test:
-                TestTabView()
+                TestTabView(l: l)
                     .environmentObject(appState)
                     .environmentObject(coordinator)
             }
         }
-        .frame(width: 560, height: 400)
+        .frame(width: 560, height: 420)
         .onAppear {
             permissionManager.checkAll()
         }
@@ -55,6 +169,7 @@ struct MainWindowView: View {
 
 struct HotkeysTabView: View {
     let hotkeyManager: HotkeyManager
+    let l: L
     @EnvironmentObject var permissionManager: PermissionManager
 
     @State private var transcribeShortcut: StoredShortcut?
@@ -63,16 +178,15 @@ struct HotkeysTabView: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 20) {
-            // Permissions
-            GroupBox("Permissions") {
+            GroupBox(l.permissions) {
                 VStack(alignment: .leading, spacing: 8) {
                     permissionRow(
-                        name: "Microphone",
+                        name: l.microphone,
                         granted: permissionManager.microphoneGranted,
                         action: { Task { await permissionManager.requestMicrophone() } }
                     )
                     permissionRow(
-                        name: "Accessibility",
+                        name: l.accessibility,
                         granted: permissionManager.accessibilityGranted,
                         action: {
                             permissionManager.requestAccessibility()
@@ -80,7 +194,7 @@ struct HotkeysTabView: View {
                         }
                     )
                     if !permissionManager.accessibilityGranted {
-                        Text("After granting, remove the old entry and re-add via Grant Access.")
+                        Text(l.accessibilityHint)
                             .font(.caption2)
                             .foregroundStyle(.secondary)
                     }
@@ -88,38 +202,35 @@ struct HotkeysTabView: View {
                 .padding(8)
             }
 
-            // Hotkey
-            GroupBox("Hotkey") {
+            GroupBox(l.hotkey) {
                 VStack(alignment: .leading, spacing: 8) {
                     ShortcutRecorderView(
-                        label: "Transcribe:",
+                        label: l.transcribe,
                         shortcut: $transcribeShortcut,
                         onRecordStart: { hotkeyManager.pause() },
                         onRecordEnd: { hotkeyManager.resume() }
                     )
-                    Text("Default: Right Option (Alt). Press once to start, press again to stop. Double-press to cancel.")
+                    Text(l.hotkeyHint)
                         .font(.caption)
                         .foregroundStyle(.secondary)
                 }
                 .padding(8)
             }
 
-            // General
-            GroupBox("General") {
-                Toggle("Launch at Login", isOn: $launchAtLogin)
+            GroupBox(l.general) {
+                Toggle(l.launchAtLogin, isOn: $launchAtLogin)
                     .onChange(of: launchAtLogin) { _, newValue in
                         setLaunchAtLogin(newValue)
                     }
                     .padding(8)
             }
 
-            // Save
             HStack {
                 Spacer()
                 if let status = saveStatus {
                     Text(status).foregroundStyle(.green).font(.caption)
                 }
-                Button("Save") { save() }
+                Button(l.save) { save() }
                     .buttonStyle(.borderedProminent)
             }
 
@@ -142,7 +253,7 @@ struct HotkeysTabView: View {
             hotkeyManager.config = config
         }
         HotkeyStore.isSetupCompleted = true
-        saveStatus = "Saved!"
+        saveStatus = l.saved
         DispatchQueue.main.asyncAfter(deadline: .now() + 2) { saveStatus = nil }
     }
 
@@ -153,10 +264,10 @@ struct HotkeysTabView: View {
             Text(name)
             Spacer()
             if !granted {
-                Button("Grant Access") { action() }
+                Button(l.grantAccess) { action() }
                     .buttonStyle(.bordered)
             } else {
-                Text("Granted").foregroundStyle(.secondary).font(.caption)
+                Text(l.granted).foregroundStyle(.secondary).font(.caption)
             }
         }
     }
@@ -174,6 +285,7 @@ struct HotkeysTabView: View {
 // MARK: - API Tab
 
 struct APITabView: View {
+    let l: L
     @State private var apiKey: String = ""
     @State private var provider: APIProvider = .openAI
     @State private var customHost: String = ""
@@ -183,9 +295,9 @@ struct APITabView: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 20) {
-            GroupBox("Provider") {
+            GroupBox(l.provider) {
                 VStack(alignment: .leading, spacing: 8) {
-                    Picker("Provider", selection: $provider) {
+                    Picker(l.provider, selection: $provider) {
                         ForEach(APIProvider.allCases) { p in
                             Text(p.displayName).tag(p)
                         }
@@ -197,7 +309,7 @@ struct APITabView: View {
                             .textFieldStyle(.roundedBorder)
                         TextField("Base Path (e.g. /backend/v1)", text: $customBasePath)
                             .textFieldStyle(.roundedBorder)
-                        Text("Must be an OpenAI-compatible API endpoint")
+                        Text(l.customHint)
                             .font(.caption2)
                             .foregroundStyle(.secondary)
                     }
@@ -205,8 +317,8 @@ struct APITabView: View {
                 .padding(8)
             }
 
-            GroupBox("API Key") {
-                SecureField("API Key", text: $apiKey)
+            GroupBox(l.apiKey) {
+                SecureField(l.apiKey, text: $apiKey)
                     .textFieldStyle(.roundedBorder)
                     .onChange(of: apiKey) { _, newValue in
                         TranscriptionService.apiKey = newValue
@@ -214,8 +326,8 @@ struct APITabView: View {
                     .padding(8)
             }
 
-            GroupBox("Model") {
-                Picker("Model", selection: $selectedModel) {
+            GroupBox(l.model) {
+                Picker(l.model, selection: $selectedModel) {
                     Text("gpt-4o-mini-transcribe ($0.003/min)").tag("gpt-4o-mini-transcribe")
                     Text("gpt-4o-transcribe ($0.006/min)").tag("gpt-4o-transcribe")
                     Text("whisper-1 ($0.006/min)").tag("whisper-1")
@@ -229,7 +341,7 @@ struct APITabView: View {
                 if let status = saveStatus {
                     Text(status).foregroundStyle(.green).font(.caption)
                 }
-                Button("Save") { save() }
+                Button(l.save) { save() }
                     .buttonStyle(.borderedProminent)
             }
 
@@ -265,7 +377,7 @@ struct APITabView: View {
         UserDefaults.standard.set(customBasePath, forKey: "customBasePath")
         UserDefaults.standard.set(selectedModel, forKey: "transcriptionModel")
 
-        saveStatus = "Saved!"
+        saveStatus = l.saved
         DispatchQueue.main.asyncAfter(deadline: .now() + 2) { saveStatus = nil }
     }
 }
@@ -273,28 +385,29 @@ struct APITabView: View {
 // MARK: - Test Tab
 
 struct TestTabView: View {
+    let l: L
     @EnvironmentObject var appState: AppState
     @EnvironmentObject var coordinator: DictationSessionCoordinator
 
     var body: some View {
         VStack(alignment: .leading, spacing: 20) {
-            GroupBox("Recording") {
+            GroupBox(l.recording) {
                 VStack(alignment: .leading, spacing: 8) {
                     HStack {
-                        Text("Status:")
+                        Text(l.status)
                         Text(appState.status.rawValue)
                             .foregroundStyle(appState.status == .recording ? .red : .secondary)
                             .fontWeight(appState.status == .recording ? .bold : .regular)
                     }
 
-                    Text("Press your hotkey to start recording, press again to stop.")
+                    Text(l.testHint)
                         .font(.caption)
                         .foregroundStyle(.secondary)
                 }
                 .padding(8)
             }
 
-            GroupBox("Result") {
+            GroupBox(l.result) {
                 TextEditor(text: $coordinator.lastTestResult)
                     .frame(minHeight: 100)
                     .border(Color.gray.opacity(0.3))

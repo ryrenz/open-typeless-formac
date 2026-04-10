@@ -58,10 +58,11 @@ final class DictationSessionCoordinator: ObservableObject {
         do {
             try audioRecorder.startRecording()
             appState.status = .recording
-            overlay.audioLevelProvider = { [weak self] in
-                self?.audioRecorder.currentLevel() ?? 0
-            }
-            overlay.show(state: .recording)
+            // Temporarily disabled overlay for crash diagnosis
+            // overlay.audioLevelProvider = { [weak self] in
+            //     self?.audioRecorder.currentLevel() ?? 0
+            // }
+            // overlay.show(state: .recording)
         } catch {
             appState.status = .idle
             showError("Failed to start recording: \(error.localizedDescription)")
@@ -73,7 +74,7 @@ final class DictationSessionCoordinator: ObservableObject {
 
         outputSnapshot = OutputTargetSnapshot.capture()
         appState.status = .processing
-        overlay.update(state: .transcribing)
+        // overlay.update(state: .transcribing)
 
         Task {
             do {

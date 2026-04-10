@@ -30,13 +30,36 @@ enum APIProvider: String, CaseIterable, Identifiable {
 }
 
 final class TranscriptionService {
-    static var apiKey = ProcessInfo.processInfo.environment["AI_BUILDER_TOKEN"]
-        ?? ProcessInfo.processInfo.environment["OPENAI_API_KEY"]
-        ?? ""
-    static var provider: APIProvider = .openAI
-    static var customHost: String = "space.ai-builders.com"
-    static var customBasePath: String = "/backend/v1"
-    static var model: String = "gpt-4o-mini-transcribe"
+    static var apiKey: String {
+        get { UserDefaults.standard.string(forKey: "apiKey")
+            ?? ProcessInfo.processInfo.environment["AI_BUILDER_TOKEN"]
+            ?? ProcessInfo.processInfo.environment["OPENAI_API_KEY"]
+            ?? "" }
+        set { UserDefaults.standard.set(newValue, forKey: "apiKey") }
+    }
+
+    static var provider: APIProvider {
+        get {
+            let raw = UserDefaults.standard.string(forKey: "apiProvider") ?? "openai"
+            return APIProvider(rawValue: raw) ?? .openAI
+        }
+        set { UserDefaults.standard.set(newValue.rawValue, forKey: "apiProvider") }
+    }
+
+    static var customHost: String {
+        get { UserDefaults.standard.string(forKey: "customHost") ?? "space.ai-builders.com" }
+        set { UserDefaults.standard.set(newValue, forKey: "customHost") }
+    }
+
+    static var customBasePath: String {
+        get { UserDefaults.standard.string(forKey: "customBasePath") ?? "/backend/v1" }
+        set { UserDefaults.standard.set(newValue, forKey: "customBasePath") }
+    }
+
+    static var model: String {
+        get { UserDefaults.standard.string(forKey: "transcriptionModel") ?? "gpt-4o-mini-transcribe" }
+        set { UserDefaults.standard.set(newValue, forKey: "transcriptionModel") }
+    }
 
     func preload() {
         // No-op for remote API
