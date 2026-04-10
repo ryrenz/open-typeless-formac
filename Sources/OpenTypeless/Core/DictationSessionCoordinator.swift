@@ -55,13 +55,18 @@ final class DictationSessionCoordinator: ObservableObject {
     func startRecording() {
         guard appState.status == .idle else { return }
 
+        print("[DEBUG] 1. startRecording called")
         do {
             try audioRecorder.startRecording()
+            print("[DEBUG] 2. audioRecorder started")
             appState.status = .recording
+            print("[DEBUG] 3. status set to recording")
             overlay.audioLevelProvider = { [weak self] in
                 self?.audioRecorder.currentLevel() ?? 0
             }
+            print("[DEBUG] 4. about to show overlay")
             overlay.show(state: .recording)
+            print("[DEBUG] 5. overlay shown")
         } catch {
             appState.status = .idle
             showError("Failed to start recording: \(error.localizedDescription)")

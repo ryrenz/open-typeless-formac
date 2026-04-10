@@ -2,9 +2,7 @@ import ApplicationServices
 import Foundation
 
 enum AccessibilityHelper {
-    /// Insert text at the current cursor position of the given element using AX API.
     static func insertText(_ text: String, into element: AXUIElement) -> Bool {
-        // Try to get current value and selected text range
         var currentValue: AnyObject?
         let valueResult = AXUIElementCopyAttributeValue(element, kAXValueAttribute as CFString, &currentValue)
 
@@ -14,10 +12,9 @@ enum AccessibilityHelper {
         if valueResult == .success,
            rangeResult == .success,
            let currentStr = currentValue as? String,
-           let rangeValue = selectedRange {
-            // We have the value and selection — insert at selection
+           let rangeValue = selectedRange as? AXValue {
             var cfRange = CFRange()
-            if AXValueGetValue(rangeValue as! AXValue, .cfRange, &cfRange) {
+            if AXValueGetValue(rangeValue, .cfRange, &cfRange) {
                 var mutable = currentStr
                 let start = mutable.index(mutable.startIndex, offsetBy: min(cfRange.location, currentStr.count))
                 let end = mutable.index(start, offsetBy: min(cfRange.length, currentStr.count - cfRange.location))
@@ -25,7 +22,6 @@ enum AccessibilityHelper {
 
                 let setResult = AXUIElementSetAttributeValue(element, kAXValueAttribute as CFString, mutable as CFTypeRef)
                 if setResult == .success {
-                    // Move cursor to end of inserted text
                     let newLocation = cfRange.location + text.count
                     var newRange = CFRange(location: newLocation, length: 0)
                     if let newRangeValue = AXValueCreate(.cfRange, &newRange) {
@@ -36,7 +32,6 @@ enum AccessibilityHelper {
             }
         }
 
-        // Fallback: try setting selected text directly
         let selectedTextResult = AXUIElementSetAttributeValue(
             element,
             kAXSelectedTextAttribute as CFString,
@@ -45,7 +40,6 @@ enum AccessibilityHelper {
         return selectedTextResult == .success
     }
 
-    /// Check if the element is a text input field.
     static func isTextInput(_ element: AXUIElement) -> Bool {
         var role: AnyObject?
         let result = AXUIElementCopyAttributeValue(element, kAXRoleAttribute as CFString, &role)
@@ -58,19 +52,22 @@ enum AccessibilityHelper {
         return textRoles.contains(roleStr)
     }
 
-    /// Get the currently focused element system-wide.
     static func getFocusedElement() -> AXUIElement? {
         let systemWide = AXUIElementCreateSystemWide()
         var focusedApp: AnyObject?
-        guard AXUIElementCopyAttributeValue(systemWide, kAXFocusedApplicationAttribute as CFString, &focusedApp) == .success else {
+        guard AXUIElementCopyAttributeValue(systemWide, kAXFocusedApplicationAttribute as CFString, &focusedApp) == .success,
+              let app = focusedApp,
+              CFGetTypeID(app) == AXUIElementGetTypeID() else {
             return nil
         }
 
         var focusedElement: AnyObject?
-        guard AXUIElementCopyAttributeValue(focusedApp as! AXUIElement, kAXFocusedUIElementAttribute as CFString, &focusedElement) == .success else {
+        guard AXUIElementCopyAttributeValue(app as! AXUIElement, kAXFocusedUIElementAttribute as CFString, &focusedElement) == .success,
+              let element = focusedElement,
+              CFGetTypeID(element) == AXUIElementGetTypeID() else {
             return nil
         }
 
-        return (focusedElement as! AXUIElement)
+        return (element as! AXUIElement)
     }
 }
