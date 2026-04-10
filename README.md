@@ -1,5 +1,7 @@
 # open-typeless
 
+[English](README.md) | [中文](README_CN.md)
+
 An open-source macOS menu bar app for speech-to-text. Press a hotkey to start recording, press again to stop — your speech is transcribed and automatically inserted into the active text field.
 
 Inspired by [Typeless](https://www.typeless.com/).
@@ -36,7 +38,7 @@ On first launch, you'll be prompted to grant:
 - **Microphone** — for recording your voice
 - **Accessibility** — for the global hotkey and text insertion
 
-> If Accessibility doesn't take effect, go to System Settings > Privacy & Security > Accessibility, toggle it off and on again.
+> After each build, you need to grant Accessibility again: go to System Settings > Privacy & Security > Accessibility, remove the old entry with the minus (-) button, then click "Grant Access" in the app to re-add it.
 
 ### 3. Configure API Key
 
@@ -57,7 +59,7 @@ You can get an OpenAI API key at [platform.openai.com/api-keys](https://platform
 
 The transcribed text will be automatically inserted into whatever text field your cursor is in. If no text field is focused, a popup appears with a Copy button.
 
-> The hotkey can be customized in Settings (coming soon).
+> The hotkey can be customized in Settings. Click "Click to record" next to the Transcribe field, then press your desired key combo.
 
 ## Pricing Estimate
 
