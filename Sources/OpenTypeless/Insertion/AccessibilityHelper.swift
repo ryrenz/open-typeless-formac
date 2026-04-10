@@ -12,7 +12,8 @@ enum AccessibilityHelper {
         if valueResult == .success,
            rangeResult == .success,
            let currentStr = currentValue as? String,
-           let rangeValue = (selectedRange as! AXValue) {
+           let selectedRange = selectedRange {
+            let rangeValue = selectedRange as! AXValue
             var cfRange = CFRange()
             if AXValueGetValue(rangeValue, .cfRange, &cfRange) {
                 var mutable = currentStr
