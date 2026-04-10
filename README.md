@@ -25,10 +25,9 @@ brew install xcodegen  # if not installed
 git clone https://github.com/scinttt/open-typeless-formac.git
 cd open-typeless-formac
 xcodegen generate
-open OpenTypeless.xcodeproj
 ```
 
-Build and run from Xcode (Cmd+R).
+Open, build, and run from Xcode (Cmd+R).
 
 ### 2. Grant Permissions
 
