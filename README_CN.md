@@ -19,21 +19,15 @@
 
 ## 快速开始
 
-### 1. 编译
+### 1. 编译运行
 
-如果没有安装 Xcode，请先从 App Store 下载。
-
-需要 macOS 14.0+、Xcode 16.0+、[XcodeGen](https://github.com/yonaskolb/XcodeGen)。
-
-```bash
-brew install xcodegen  # 如果没装
-git clone https://github.com/scinttt/open-typeless-formac.git
-cd open-typeless-formac
-xcodegen generate
-open OpenTypeless.xcodeproj
-```
-
-在 Xcode 中编译运行（Cmd+R）。
+1. 从 [App Store](https://apps.apple.com/app/xcode/id497799835) 下载 **Xcode**（需要 macOS 14.0+）
+2. 克隆本仓库：
+   ```bash
+   git clone https://github.com/scinttt/open-typeless-formac.git
+   ```
+3. 用 Xcode 打开 `OpenTypeless.xcodeproj`
+4. 按 **Cmd+R** 编译运行
 
 ### 2. 找到应用
 

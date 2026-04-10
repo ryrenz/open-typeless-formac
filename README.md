@@ -19,19 +19,15 @@ Inspired by [Typeless](https://www.typeless.com/).
 
 ## Quick Start
 
-### 1. Build
+### 1. Build & Run
 
-Requires macOS 14.0+, Xcode 16.0+, and [XcodeGen](https://github.com/yonaskolb/XcodeGen).
-
-```bash
-brew install xcodegen  # if not installed
-git clone https://github.com/scinttt/open-typeless-formac.git
-cd open-typeless-formac
-xcodegen generate
-open OpenTypeless.xcodeproj
-```
-
-Build and run from Xcode (Cmd+R).
+1. Download **Xcode** from the [App Store](https://apps.apple.com/app/xcode/id497799835) (requires macOS 14.0+)
+2. Clone this repo:
+   ```bash
+   git clone https://github.com/scinttt/open-typeless-formac.git
+   ```
+3. Open `OpenTypeless.xcodeproj` in Xcode
+4. Press **Cmd+R** to build and run
 
 ### 2. Find the App
 
