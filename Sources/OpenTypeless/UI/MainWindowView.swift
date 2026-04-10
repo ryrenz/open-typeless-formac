@@ -10,7 +10,8 @@ struct MainWindowView: View {
 
     @State private var apiKey: String = ""
     @State private var provider: APIProvider = .openAI
-    @State private var customURL: String = ""
+    @State private var customHost: String = ""
+    @State private var customBasePath: String = ""
     @State private var selectedModel: String = "gpt-4o-mini-transcribe"
     @State private var launchAtLogin: Bool = false
     @State private var transcribeShortcut: StoredShortcut?
@@ -126,9 +127,11 @@ struct MainWindowView: View {
                 .pickerStyle(.menu)
 
                 if provider == .custom {
-                    TextField("API URL", text: $customURL)
+                    TextField("Host (e.g. space.ai-builders.com)", text: $customHost)
                         .textFieldStyle(.roundedBorder)
-                    Text("Must be OpenAI-compatible /v1/audio/transcriptions endpoint")
+                    TextField("Base Path (e.g. /backend/v1)", text: $customBasePath)
+                        .textFieldStyle(.roundedBorder)
+                    Text("Must be an OpenAI-compatible API endpoint")
                         .font(.caption2)
                         .foregroundStyle(.secondary)
                 }
@@ -198,7 +201,8 @@ struct MainWindowView: View {
     private func loadSettings() {
         apiKey = TranscriptionService.apiKey
         provider = TranscriptionService.provider
-        customURL = TranscriptionService.customBaseURL
+        customHost = TranscriptionService.customHost
+        customBasePath = TranscriptionService.customBasePath
         selectedModel = UserDefaults.standard.string(forKey: "transcriptionModel") ?? TranscriptionService.model
         launchAtLogin = SMAppService.mainApp.status == .enabled
         transcribeShortcut = HotkeyStore.loadTranscribe()
@@ -207,9 +211,8 @@ struct MainWindowView: View {
            let p = APIProvider(rawValue: stored) {
             provider = p
         }
-        if let url = UserDefaults.standard.string(forKey: "customBaseURL") {
-            customURL = url
-        }
+        if let h = UserDefaults.standard.string(forKey: "customHost") { customHost = h }
+        if let bp = UserDefaults.standard.string(forKey: "customBasePath") { customBasePath = bp }
 
         permissionManager.checkAll()
     }
@@ -217,12 +220,14 @@ struct MainWindowView: View {
     private func saveSettings() {
         if !apiKey.isEmpty { TranscriptionService.apiKey = apiKey }
         TranscriptionService.provider = provider
-        if provider == .custom && !customURL.isEmpty {
-            TranscriptionService.customBaseURL = customURL
+        if provider == .custom {
+            if !customHost.isEmpty { TranscriptionService.customHost = customHost }
+            if !customBasePath.isEmpty { TranscriptionService.customBasePath = customBasePath }
         }
         TranscriptionService.model = selectedModel
         UserDefaults.standard.set(provider.rawValue, forKey: "apiProvider")
-        UserDefaults.standard.set(customURL, forKey: "customBaseURL")
+        UserDefaults.standard.set(customHost, forKey: "customHost")
+        UserDefaults.standard.set(customBasePath, forKey: "customBasePath")
         UserDefaults.standard.set(selectedModel, forKey: "transcriptionModel")
 
         if let t = transcribeShortcut {

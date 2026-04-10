@@ -12,16 +12,16 @@ settings:
     MACOSX_DEPLOYMENT_TARGET: "14.0"
 
 packages:
-  WhisperKit:
-    url: https://github.com/argmaxinc/WhisperKit.git
-    from: "0.9.0"
+  OpenAI:
+    url: https://github.com/MacPaw/OpenAI.git
+    branch: main
 
 targets:
   OpenTypeless:
     type: application
     platform: macOS
     dependencies:
-      - package: WhisperKit
+      - package: OpenAI
     sources:
       - path: Sources/OpenTypeless
     resources:
