@@ -36,11 +36,14 @@ final class HotkeyStoreTests: XCTestCase {
         XCTAssertTrue(loaded!.modifiers.contains(.maskShift))
     }
 
-    func testLoadConfigReturnsNilWhenPartial() {
+    func testLoadConfigReturnsDefaultTranslateWhenPartial() {
         let shortcut = StoredShortcut(keyCode: 1, modifiers: .maskCommand)
         HotkeyStore.saveTranscribe(shortcut)
-        // Only transcribe saved, translate missing
-        XCTAssertNil(HotkeyStore.loadConfig())
+        let config = HotkeyStore.loadConfig()
+        XCTAssertNotNil(config)
+        XCTAssertEqual(config?.transcribeKeyCode, 1)
+        XCTAssertEqual(config?.translateKeyCode, 2)
+        XCTAssertEqual(config?.translateModifiers, .maskControl)
     }
 
     func testLoadConfigReturnsBothWhenComplete() {

@@ -24,7 +24,7 @@
 1. 从 [App Store](https://apps.apple.com/app/xcode/id497799835) 下载 **Xcode**
 2. 克隆本仓库：
    ```bash
-   git clone https://github.com/scinttt/open-typeless-formac.git
+   git clone https://github.com/ryrenz/open-typeless-formac.git
    ```
 3. 用 Xcode 打开 `OpenTypeless.xcodeproj`
 4. 设置签名：选择 `OpenTypeless` target → **Signing & Capabilities** → 勾选 **"Automatically manage signing"** → 选择你的 **Personal Team** → Signing Certificate 选择 **"Sign to Run Locally"**

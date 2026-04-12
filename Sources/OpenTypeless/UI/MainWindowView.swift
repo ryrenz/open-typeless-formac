@@ -30,6 +30,7 @@ struct L {
 
     // Tabs
     var hotkeys: String { lang == .zh ? "快捷键" : "Hotkeys" }
+    var dictionary: String { lang == .zh ? "词汇表" : "Dictionary" }
     var api: String { "API" }
     var test: String { lang == .zh ? "测试" : "Test" }
 
@@ -88,12 +89,14 @@ struct L {
 
 enum SettingsTab: String, CaseIterable {
     case hotkeys
+    case dictionary
     case api
     case test
 
     func label(_ l: L) -> String {
         switch self {
         case .hotkeys: return l.hotkeys
+        case .dictionary: return l.dictionary
         case .api: return l.api
         case .test: return l.test
         }
@@ -142,6 +145,8 @@ struct MainWindowView: View {
             case .hotkeys:
                 HotkeysTabView(hotkeyManager: hotkeyManager, l: l)
                     .environmentObject(permissionManager)
+            case .dictionary:
+                DictionaryTabView(l: l)
             case .api:
                 APITabView(l: l)
             case .test:
@@ -150,7 +155,7 @@ struct MainWindowView: View {
                     .environmentObject(coordinator)
             }
         }
-        .frame(width: 560, height: 420)
+        .frame(width: 640, height: 500)
         .onAppear {
             permissionManager.checkAll()
         }
@@ -159,6 +164,7 @@ struct MainWindowView: View {
     private func tabIcon(_ tab: SettingsTab) -> String {
         switch tab {
         case .hotkeys: return "keyboard"
+        case .dictionary: return "text.book.closed"
         case .api: return "key"
         case .test: return "mic"
         }

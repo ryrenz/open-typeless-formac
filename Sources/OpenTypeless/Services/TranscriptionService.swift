@@ -65,7 +65,7 @@ final class TranscriptionService {
         // No-op for remote API
     }
 
-    func transcribe(audioURL: URL) async throws -> String {
+    func transcribe(audioURL: URL, prompt: String? = nil) async throws -> String {
         let key = Self.apiKey
         guard !key.isEmpty else { throw TranscriptionError.noAPIKey }
 
@@ -82,7 +82,8 @@ final class TranscriptionService {
         let query = AudioTranscriptionQuery(
             file: audioData,
             fileType: fileName.hasSuffix(".m4a") ? .m4a : .wav,
-            model: .init(Self.model)
+            model: .init(Self.model),
+            prompt: prompt
         )
 
         // Wrap SDK call to catch any unexpected crashes

@@ -24,7 +24,7 @@ Inspired by [Typeless](https://www.typeless.com/).
 1. Download **Xcode** from the [App Store](https://apps.apple.com/app/xcode/id497799835)
 2. Clone this repo:
    ```bash
-   git clone https://github.com/scinttt/open-typeless-formac.git
+   git clone https://github.com/ryrenz/open-typeless-formac.git
    ```
 3. Open `OpenTypeless.xcodeproj` in Xcode
 4. Set up signing: Select the `OpenTypeless` target → **Signing & Capabilities** → Check **"Automatically manage signing"** → Select your **Personal Team** → Set Signing Certificate to **"Sign to Run Locally"**

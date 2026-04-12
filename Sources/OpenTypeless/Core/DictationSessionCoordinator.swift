@@ -4,6 +4,7 @@ import Foundation
 final class DictationSessionCoordinator: ObservableObject {
     private let audioRecorder = AudioRecorder()
     let transcriptionService = TranscriptionService()
+    private let dictionaryStore: DictionaryStore
     private let popupController = ResultPopupController()
     private let overlay = ProgressOverlayController.shared
     private var outputSnapshot: OutputTargetSnapshot?
@@ -15,8 +16,9 @@ final class DictationSessionCoordinator: ObservableObject {
 
     @Published var appState: AppState
 
-    init(appState: AppState) {
+    init(appState: AppState, dictionaryStore: DictionaryStore = .shared) {
         self.appState = appState
+        self.dictionaryStore = dictionaryStore
     }
 
     func preloadModel() {
@@ -101,29 +103,38 @@ final class DictationSessionCoordinator: ObservableObject {
 
         let transcribedText: String
         do {
-            transcribedText = try await transcriptionService.transcribe(audioURL: audioURL)
+            transcribedText = try await transcriptionService.transcribe(
+                audioURL: audioURL,
+                prompt: makeTranscriptionPrompt()
+            )
         } catch {
             appState.status = .idle
             showError("Transcription failed: \(error.localizedDescription)")
             return
         }
 
+        let correctedText = DictionaryCorrectionEngine.apply(
+            to: transcribedText,
+            entries: dictionaryStore.activeEntries()
+        )
+
         // Deliver result
         overlay.dismiss()
-        lastTestResult = transcribedText
+        lastTestResult = correctedText
 
         // Skip insertion if focused app is ourselves (settings test area)
         let myPID = ProcessInfo.processInfo.processIdentifier
         guard let snapshot = outputSnapshot, snapshot.appPID != myPID else {
             appState.status = .idle
-            if outputSnapshot == nil { popupController.show(text: transcribedText) }
+            if outputSnapshot == nil { popupController.show(text: correctedText) }
             return
         }
 
-        let result = await InsertionStrategy.insert(text: transcribedText, snapshot: snapshot)
+        let result = await InsertionStrategy.insert(text: correctedText, snapshot: snapshot)
 
         switch result {
         case .insertedViaAX, .insertedViaClipboard:
+            handlePostInsertionObservation(originalText: correctedText)
             break
         case .showPopup(let text):
             popupController.show(text: text)
@@ -131,6 +142,15 @@ final class DictationSessionCoordinator: ObservableObject {
 
         appState.status = .idle
         outputSnapshot = nil
+    }
+
+    func makeTranscriptionPrompt() -> String? {
+        HotwordPromptBuilder.buildPrompt(from: dictionaryStore.activeEntries())
+    }
+
+    func handlePostInsertionObservation(originalText: String) {
+        _ = originalText
+        // Reserved for future auto-learn hooks.
     }
 
     // MARK: - Error handling
