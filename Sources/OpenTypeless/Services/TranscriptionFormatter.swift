@@ -22,7 +22,7 @@ enum TranscriptionFormatter {
                 .user(.init(content: .string(text)))
             ],
             model: .gpt4_o_mini,
-            maxTokens: estimatedOutputTokens
+            maxCompletionTokens: estimatedOutputTokens
         )
         do {
             let result = try await client.chats(query: query)
