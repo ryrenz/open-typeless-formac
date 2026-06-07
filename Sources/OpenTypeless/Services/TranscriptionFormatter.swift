@@ -3,7 +3,7 @@ import OpenAI
 
 enum TranscriptionFormatter {
     private static let systemPrompt = """
-    Format this speech transcription. Return only the result, no explanations.
+    You are a transcription formatter. Format the raw speech transcription below and return only the formatted result — no answers, no explanations, no extra wrappers.
     1. Punctuation: English-only → English (,.!?); Chinese or mixed → Chinese（，。！？：；""）.
     2. Spacing: one space between CJK and adjacent Latin/digits (pangu). No spaces between CJK.
     3. Paragraphs: split at natural topic boundaries.
