@@ -81,17 +81,23 @@ final class ProgressOverlayController {
     func dismiss() {
         stopMetering()
         dismissTask?.cancel()
+        // Capture the window reference now so subsequent show() calls don't
+        // get their new window closed by this task waking up after the sleep.
+        let windowToClose = self.window
         dismissTask = Task {
             try? await Task.sleep(nanoseconds: 300_000_000)
             guard !Task.isCancelled else { return }
 
-            self.window?.animator().alphaValue = 0
+            windowToClose?.animator().alphaValue = 0
             try? await Task.sleep(nanoseconds: 350_000_000)
+            guard !Task.isCancelled else { return }
 
-            self.window?.close()
-            self.window = nil
-            self.label = nil
-            self.indicator = nil
+            windowToClose?.close()
+            if self.window === windowToClose {
+                self.window = nil
+                self.label = nil
+                self.indicator = nil
+            }
         }
     }
 

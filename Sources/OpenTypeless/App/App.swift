@@ -67,6 +67,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate, ObservableObject {
         )
     }
 
+    func applicationWillTerminate(_ notification: Notification) {
+        accessibilityTimer?.invalidate()
+        accessibilityTimer = nil
+        hotkeyManager.stop()
+    }
+
     private func startHotkeyWithAccessibilityPolling() {
         let options = [kAXTrustedCheckOptionPrompt.takeUnretainedValue(): true] as CFDictionary
         let trusted = AXIsProcessTrustedWithOptions(options)

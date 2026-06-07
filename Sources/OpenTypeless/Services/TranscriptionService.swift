@@ -112,7 +112,8 @@ final class TranscriptionService {
         }
 
         guard !text.isEmpty else { throw TranscriptionError.noResult }
-        return text
+        let formatted = await TranscriptionFormatter.format(text, client: client)
+        return formatted
     }
 
     static func looksLikePromptEcho(_ text: String, prompt: String?) -> Bool {

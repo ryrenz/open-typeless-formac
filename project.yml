@@ -34,6 +34,7 @@ targets:
       path: Sources/OpenTypeless/OpenTypeless.entitlements
       properties:
         com.apple.security.app-sandbox: false
+        com.apple.security.device.audio-input: true
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: com.scinttt.open-typeless

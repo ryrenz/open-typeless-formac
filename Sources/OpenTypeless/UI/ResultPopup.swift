@@ -10,6 +10,10 @@ final class ResultPopupController: ObservableObject {
     private var popupWindow: NSWindow?
 
     func show(text: String) {
+        // Close any existing popup before creating a new one to avoid orphaned windows.
+        popupWindow?.close()
+        popupWindow = nil
+
         resultText = text
         isShowing = true
         showCopiedFeedback = false
