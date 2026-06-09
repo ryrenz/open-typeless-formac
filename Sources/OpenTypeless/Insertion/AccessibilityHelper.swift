@@ -3,6 +3,19 @@ import Foundation
 
 enum AccessibilityHelper {
     static func insertText(_ text: String, into element: AXUIElement) -> Bool {
+        // Preferred: replace the current selection (or insert at the caret) surgically.
+        // This avoids reading and rewriting the element's entire value, which is
+        // expensive and risky for large fields (e.g. a terminal's scrollback buffer).
+        let selectedTextResult = AXUIElementSetAttributeValue(
+            element,
+            kAXSelectedTextAttribute as CFString,
+            text as CFTypeRef
+        )
+        if selectedTextResult == .success {
+            return true
+        }
+
+        // Fallback: splice the text into the full value at the selected range.
         var currentValue: AnyObject?
         let valueResult = AXUIElementCopyAttributeValue(element, kAXValueAttribute as CFString, &currentValue)
 
@@ -16,14 +29,20 @@ enum AccessibilityHelper {
             let rangeValue = selectedRange as! AXValue
             var cfRange = CFRange()
             if AXValueGetValue(rangeValue, .cfRange, &cfRange) {
+                // Clamp the range to the actual string bounds — a stale or
+                // out-of-range selection would otherwise crash the index math.
+                let count = currentStr.count
+                let location = max(0, min(cfRange.location, count))
+                let length = max(0, min(cfRange.length, count - location))
+
                 var mutable = currentStr
-                let start = mutable.index(mutable.startIndex, offsetBy: min(cfRange.location, currentStr.count))
-                let end = mutable.index(start, offsetBy: min(cfRange.length, currentStr.count - cfRange.location))
+                let start = mutable.index(mutable.startIndex, offsetBy: location)
+                let end = mutable.index(start, offsetBy: length)
                 mutable.replaceSubrange(start..<end, with: text)
 
                 let setResult = AXUIElementSetAttributeValue(element, kAXValueAttribute as CFString, mutable as CFTypeRef)
                 if setResult == .success {
-                    let newLocation = cfRange.location + text.count
+                    let newLocation = location + text.count
                     var newRange = CFRange(location: newLocation, length: 0)
                     if let newRangeValue = AXValueCreate(.cfRange, &newRange) {
                         AXUIElementSetAttributeValue(element, kAXSelectedTextRangeAttribute as CFString, newRangeValue)
@@ -33,12 +52,7 @@ enum AccessibilityHelper {
             }
         }
 
-        let selectedTextResult = AXUIElementSetAttributeValue(
-            element,
-            kAXSelectedTextAttribute as CFString,
-            text as CFTypeRef
-        )
-        return selectedTextResult == .success
+        return false
     }
 
     static func isTextInput(_ element: AXUIElement) -> Bool {

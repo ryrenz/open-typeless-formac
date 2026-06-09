@@ -34,7 +34,9 @@ final class ResultPopupController: ObservableObject {
         window.isFloatingPanel = true
         window.level = .floating
         window.center()
-        NSApp.activate(ignoringOtherApps: true)
+        // A non-activating panel can become key (so ESC / Cmd+Return work) without
+        // pulling OpenTypeless to the foreground and stealing focus from the
+        // input field the user was dictating into.
         window.makeKeyAndOrderFront(nil)
 
         // Allow ESC to close
