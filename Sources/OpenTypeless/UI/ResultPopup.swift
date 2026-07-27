@@ -8,13 +8,15 @@ final class ResultPopupController: ObservableObject {
     @Published var showCopiedFeedback = false
 
     private var popupWindow: NSWindow?
+    private var copyText = ""
 
-    func show(text: String) {
+    func show(text: String, copyText: String? = nil) {
         // Close any existing popup before creating a new one to avoid orphaned windows.
         popupWindow?.close()
         popupWindow = nil
 
         resultText = text
+        self.copyText = copyText ?? text
         isShowing = true
         showCopiedFeedback = false
 
@@ -47,7 +49,7 @@ final class ResultPopupController: ObservableObject {
 
     func copyAndDismiss() {
         NSPasteboard.general.clearContents()
-        NSPasteboard.general.setString(resultText, forType: .string)
+        NSPasteboard.general.setString(copyText, forType: .string)
 
         showCopiedFeedback = true
 

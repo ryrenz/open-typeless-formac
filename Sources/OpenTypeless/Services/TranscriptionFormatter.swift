@@ -30,13 +30,31 @@ enum TranscriptionFormatter {
         )
         do {
             let result = try await client.chats(query: query)
-            if let formatted = result.choices.first?.message.content,
-               !formatted.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
-                return formatted.trimmingCharacters(in: .whitespacesAndNewlines)
-            }
+            guard let choice = result.choices.first else { return text }
+            return resolvedText(
+                original: text,
+                candidate: choice.message.content,
+                finishReason: choice.finishReason
+            )
         } catch {
             // Silently fall back to unformatted text
         }
         return text
+    }
+
+    static func resolvedText(
+        original: String,
+        candidate: String?,
+        finishReason: String
+    ) -> String {
+        guard finishReason != "length",
+              finishReason != "content_filter",
+              let candidate
+        else {
+            return original
+        }
+
+        let trimmed = candidate.trimmingCharacters(in: .whitespacesAndNewlines)
+        return trimmed.isEmpty ? original : trimmed
     }
 }

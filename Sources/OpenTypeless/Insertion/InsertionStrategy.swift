@@ -10,6 +10,13 @@ enum InsertionResult {
 }
 
 enum InsertionStrategy {
+    @MainActor
+    static func copyToClipboard(_ text: String) {
+        let pasteboard = NSPasteboard.general
+        pasteboard.clearContents()
+        pasteboard.setString(text, forType: .string)
+    }
+
     /// Insert text using the best available method, falling back through layers.
     @MainActor
     static func insert(text: String, snapshot: OutputTargetSnapshot) async -> InsertionResult {
@@ -29,11 +36,18 @@ enum InsertionStrategy {
         if snapshot.hasTarget {
             // Re-focus the captured app so the synthetic Cmd+V lands in the field
             // the user was actually looking at, not wherever focus drifted to.
+            // After long recordings the target has often been backgrounded for
+            // many seconds (App Nap, user switched away), so a fixed short sleep
+            // is not enough — poll until activation actually completes.
             if let pid = snapshot.appPID,
                let app = NSRunningApplication(processIdentifier: pid),
                !app.isActive {
                 app.activate()
-                try? await Task.sleep(nanoseconds: 120_000_000)
+                for _ in 0..<20 where !app.isActive {
+                    try? await Task.sleep(nanoseconds: 50_000_000)
+                }
+                // Grace period for focus to land back in the text field.
+                try? await Task.sleep(nanoseconds: 150_000_000)
             }
             await clipboardPaste(text: text)
             return .insertedViaClipboard
@@ -66,9 +80,12 @@ enum InsertionStrategy {
         try? await Task.sleep(nanoseconds: 250_000_000)
 
         // Restore the previous clipboard, but decoupled from the result path and
-        // after a generous delay. A slow target (terminal / heavy app) may read
-        // the pasteboard well after the keystroke; restoring too eagerly is what
-        // caused stale clipboard content to be pasted instead of the transcription.
+        // after a generous delay. A slow target (terminal / heavy app, or one
+        // just woken by activate()) may read the pasteboard seconds after the
+        // keystroke; restoring too eagerly is what caused stale clipboard
+        // content to be pasted instead of the transcription. Restoring late is
+        // harmless (the changeCount guard still protects fresh user copies),
+        // restoring early corrupts the paste — so err heavily toward late.
         if let originalItems {
             scheduleClipboardRestore(originalItems, expectedChangeCount: writeChangeCount)
         }
@@ -84,7 +101,7 @@ enum InsertionStrategy {
         expectedChangeCount: Int
     ) {
         Task { @MainActor in
-            try? await Task.sleep(nanoseconds: 700_000_000)
+            try? await Task.sleep(nanoseconds: 2_500_000_000)
             let pasteboard = NSPasteboard.general
             guard pasteboard.changeCount == expectedChangeCount else { return }
 

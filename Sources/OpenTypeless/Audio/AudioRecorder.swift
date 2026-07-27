@@ -22,6 +22,7 @@ final class AudioRecorder: NSObject, AVAudioRecorderDelegate {
     private var recordingURL: URL?
     private var isRecording = false
     private var peakObservedLevel: Float = 0
+    private var silenceRangeDetector = SilenceRangeDetector()
 
     func startRecording() throws {
         guard !isRecording else { return }
@@ -62,6 +63,7 @@ final class AudioRecorder: NSObject, AVAudioRecorderDelegate {
         recordingURL = url
         isRecording = true
         peakObservedLevel = 0
+        silenceRangeDetector.reset()
         print("[AudioRecorder] Recording started: \(url.lastPathComponent)")
     }
 
@@ -70,7 +72,9 @@ final class AudioRecorder: NSObject, AVAudioRecorderDelegate {
             throw AudioRecorderError.noAudioData
         }
 
+        let recordedDuration = rec.currentTime
         rec.stop()
+        silenceRangeDetector.finish(at: recordedDuration)
         recorder = nil
         isRecording = false
 
@@ -94,6 +98,7 @@ final class AudioRecorder: NSObject, AVAudioRecorderDelegate {
         recordingURL = nil
         isRecording = false
         peakObservedLevel = 0
+        silenceRangeDetector.reset()
     }
 
     /// Get current audio level (0.0 - 1.0). Call periodically during recording.
@@ -104,6 +109,7 @@ final class AudioRecorder: NSObject, AVAudioRecorderDelegate {
         let normalized = max(0, (dB + 50) / 50) // map -50...0 dB to 0...1
         let level = min(normalized, 1.0)
         peakObservedLevel = max(peakObservedLevel, level)
+        silenceRangeDetector.record(time: rec.currentTime, level: level)
         return level
     }
 
@@ -113,6 +119,10 @@ final class AudioRecorder: NSObject, AVAudioRecorderDelegate {
 
     func observedPeakLevel() -> Float {
         peakObservedLevel
+    }
+
+    func observedSilenceRanges() -> [AudioSilenceRange] {
+        silenceRangeDetector.ranges
     }
 
     static func isSilentRecording(peakLevel: Float) -> Bool {

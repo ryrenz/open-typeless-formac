@@ -78,6 +78,14 @@ final class ProgressOverlayController {
         if state == .recording { startMetering() } else { stopMetering() }
     }
 
+    func updateTranscriptionProgress(current: Int, total: Int) {
+        guard total > 1 else {
+            label?.stringValue = "Transcribing..."
+            return
+        }
+        label?.stringValue = "Transcribing \(current)/\(total)..."
+    }
+
     func dismiss() {
         stopMetering()
         dismissTask?.cancel()

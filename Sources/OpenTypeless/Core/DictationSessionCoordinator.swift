@@ -6,6 +6,7 @@ final class DictationSessionCoordinator: ObservableObject {
     let transcriptionService = TranscriptionService()
     private let dictionaryStore: DictionaryStore
     private let historyStore: HistoryStore
+    private let pendingTranscriptionStore: PendingTranscriptionStore
     private let popupController = ResultPopupController()
     private let overlay = ProgressOverlayController.shared
     private var outputSnapshot: OutputTargetSnapshot?
@@ -20,11 +21,13 @@ final class DictationSessionCoordinator: ObservableObject {
     init(
         appState: AppState,
         dictionaryStore: DictionaryStore = .shared,
-        historyStore: HistoryStore = .shared
+        historyStore: HistoryStore = .shared,
+        pendingTranscriptionStore: PendingTranscriptionStore = .shared
     ) {
         self.appState = appState
         self.dictionaryStore = dictionaryStore
         self.historyStore = historyStore
+        self.pendingTranscriptionStore = pendingTranscriptionStore
     }
 
     func preloadModel() {
@@ -100,7 +103,12 @@ final class DictationSessionCoordinator: ObservableObject {
             return
         }
 
-        defer { AudioRecorder.cleanUp(url: audioURL) }
+        var shouldCleanUpAudio = true
+        defer {
+            if shouldCleanUpAudio {
+                AudioRecorder.cleanUp(url: audioURL)
+            }
+        }
 
         if audioRecorder.shouldSkipTranscriptionForSilence() {
             handleNoResult()
@@ -111,15 +119,30 @@ final class DictationSessionCoordinator: ObservableObject {
         do {
             transcribedText = try await transcriptionService.transcribe(
                 audioURL: audioURL,
-                prompt: makeTranscriptionPrompt()
+                prompt: makeTranscriptionPrompt(),
+                silenceRanges: audioRecorder.observedSilenceRanges(),
+                onProgress: { [weak self] current, total in
+                    self?.overlay.updateTranscriptionProgress(
+                        current: current,
+                        total: total
+                    )
+                }
             )
         } catch {
-            if case TranscriptionError.noResult = error {
-                handleNoResult()
-                return
+            shouldCleanUpAudio = false
+            if case TranscriptionError.partialResult(let text, _, _, _) = error {
+                handlePartialResult(
+                    text,
+                    audioURL: audioURL,
+                    error: error
+                )
+            } else {
+                handleRecoverableFailure(
+                    audioURL: audioURL,
+                    partialText: nil,
+                    error: error
+                )
             }
-            appState.status = .idle
-            showError("Transcription failed: \(error.localizedDescription)")
             return
         }
 
@@ -182,6 +205,88 @@ final class DictationSessionCoordinator: ObservableObject {
         overlay.dismiss()
         appState.status = .idle
         outputSnapshot = nil
+    }
+
+    private func handlePartialResult(
+        _ partialText: String,
+        audioURL: URL,
+        error: Error
+    ) {
+        let correctedText = DictionaryCorrectionEngine.apply(
+            to: partialText,
+            entries: dictionaryStore.activeEntries()
+        )
+        recordHistory(finalText: correctedText)
+        lastTestResult = correctedText
+        InsertionStrategy.copyToClipboard(correctedText)
+
+        handleRecoverableFailure(
+            audioURL: audioURL,
+            partialText: correctedText,
+            error: error
+        )
+    }
+
+    private func handleRecoverableFailure(
+        audioURL: URL,
+        partialText: String?,
+        error: Error
+    ) {
+        let recoveryURL: URL
+        let isPersisted: Bool
+        do {
+            recoveryURL = try pendingTranscriptionStore.preserve(
+                audioURL: audioURL,
+                partialText: partialText,
+                failureReason: error.localizedDescription
+            ).audioURL
+            isPersisted = true
+        } catch {
+            // Leave the original temporary file untouched if preservation fails.
+            recoveryURL = audioURL
+            isPersisted = false
+        }
+
+        overlay.flashError()
+        appState.flashError()
+        outputSnapshot = nil
+
+        let message: String
+        if let partialText, !partialText.isEmpty {
+            if isPersisted {
+                message = """
+                Transcription was only partially completed. The recovered text is in your clipboard and history.
+
+                The original recording was saved for retry:
+                \(recoveryURL.path)
+                """
+            } else {
+                message = """
+                Transcription was only partially completed. The recovered text is in your clipboard and history.
+
+                The recording could not be moved to persistent storage. Copy it from this temporary path before macOS removes it:
+                \(recoveryURL.path)
+                """
+            }
+            popupController.show(text: message, copyText: partialText)
+        } else {
+            if isPersisted {
+                message = """
+                Transcription failed, but the original recording was preserved:
+                \(recoveryURL.path)
+
+                \(error.localizedDescription)
+                """
+            } else {
+                message = """
+                Transcription failed, and the recording could not be moved to persistent storage. Copy it from this temporary path before macOS removes it:
+                \(recoveryURL.path)
+
+                \(error.localizedDescription)
+                """
+            }
+            popupController.show(text: message, copyText: recoveryURL.path)
+        }
     }
 
     // MARK: - Error handling

@@ -1,0 +1,2 @@
+// Keep personal signing values outside the public repository.
+#include? "../.local/Signing.xcconfig"
