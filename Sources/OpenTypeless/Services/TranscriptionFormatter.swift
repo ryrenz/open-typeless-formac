@@ -16,7 +16,7 @@ enum TranscriptionFormatter {
 
     private static let minFormattingLength = 20
 
-    static func format(_ text: String, client: OpenAI) async -> String {
+    static func format(_ text: String, client: OpenAI) async throws -> String {
         guard text.count >= minFormattingLength else { return text }
 
         let estimatedOutputTokens = min(text.count * 2 + 200, 4096)
@@ -37,6 +37,9 @@ enum TranscriptionFormatter {
                 finishReason: choice.finishReason
             )
         } catch {
+            if error is CancellationError || Task.isCancelled {
+                throw CancellationError()
+            }
             // Silently fall back to unformatted text
         }
         return text

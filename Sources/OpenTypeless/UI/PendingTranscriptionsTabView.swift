@@ -1,0 +1,212 @@
+import AppKit
+import SwiftUI
+
+struct PendingTranscriptionsTabView: View {
+    let l: L
+    let store: PendingTranscriptionStore
+
+    @State private var items: [PendingTranscriptionItem] = []
+    @State private var itemPendingDeletion: PendingTranscriptionItem?
+    @State private var showsClearConfirmation = false
+    @State private var errorMessage: String?
+
+    init(l: L, store: PendingTranscriptionStore = .shared) {
+        self.l = l
+        self.store = store
+    }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 20) {
+            GroupBox(title) {
+                VStack(alignment: .leading, spacing: 12) {
+                    Text(description)
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+
+                    if let errorMessage {
+                        Text(errorMessage)
+                            .font(.caption)
+                            .foregroundStyle(.red)
+                    }
+
+                    if items.isEmpty {
+                        Text(emptyState)
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                            .padding(.vertical, 8)
+                    } else {
+                        HStack {
+                            Text(itemCountLabel)
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                            Spacer()
+                            Button(clearAllLabel, role: .destructive) {
+                                showsClearConfirmation = true
+                            }
+                            .buttonStyle(.bordered)
+                        }
+
+                        List(items) { item in
+                            row(for: item)
+                        }
+                        .frame(minHeight: 300)
+                    }
+                }
+                .padding(8)
+            }
+            Spacer()
+        }
+        .padding(20)
+        .onAppear { reload() }
+        .onReceive(
+            NotificationCenter.default.publisher(
+                for: PendingTranscriptionStore.didChangeNotification
+            )
+        ) { _ in
+            reload()
+        }
+        .confirmationDialog(
+            deleteLabel,
+            isPresented: Binding(
+                get: { itemPendingDeletion != nil },
+                set: { if !$0 { itemPendingDeletion = nil } }
+            ),
+            titleVisibility: .visible
+        ) {
+            Button(deleteLabel, role: .destructive) { deletePendingItem() }
+            Button(cancelLabel, role: .cancel) {
+                itemPendingDeletion = nil
+            }
+        } message: {
+            Text(deleteConfirmation)
+        }
+        .confirmationDialog(
+            clearAllLabel,
+            isPresented: $showsClearConfirmation,
+            titleVisibility: .visible
+        ) {
+            Button(clearAllLabel, role: .destructive) { clearAll() }
+            Button(cancelLabel, role: .cancel) {}
+        } message: {
+            Text(clearAllConfirmation)
+        }
+    }
+
+    @ViewBuilder
+    private func row(for item: PendingTranscriptionItem) -> some View {
+        HStack(alignment: .top, spacing: 12) {
+            VStack(alignment: .leading, spacing: 4) {
+                Text(Self.dateFormatter.string(from: item.record.createdAt))
+                    .font(.headline)
+                Text(item.record.failureReason)
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    .lineLimit(2)
+                if let partialText = item.record.partialText {
+                    Text(partialText)
+                        .font(.caption)
+                        .lineLimit(2)
+                        .textSelection(.enabled)
+                }
+                Text(fileDetails(for: item))
+                    .font(.caption2)
+                    .foregroundStyle(.tertiary)
+            }
+
+            Spacer()
+
+            VStack(alignment: .trailing, spacing: 6) {
+                Button(revealLabel) { reveal(item) }
+                    .buttonStyle(.bordered)
+                    .disabled(item.audioURL == nil && item.manifestURL == nil)
+                Button(deleteLabel, role: .destructive) {
+                    itemPendingDeletion = item
+                }
+                .buttonStyle(.bordered)
+            }
+        }
+        .padding(.vertical, 4)
+    }
+
+    private func reload() {
+        items = store.loadAll()
+        errorMessage = nil
+    }
+
+    private func reveal(_ item: PendingTranscriptionItem) {
+        if let url = item.audioURL ?? item.manifestURL {
+            NSWorkspace.shared.activateFileViewerSelecting([url])
+        }
+    }
+
+    private func deletePendingItem() {
+        guard let item = itemPendingDeletion else { return }
+        do {
+            try store.delete(id: item.id)
+            itemPendingDeletion = nil
+            reload()
+        } catch {
+            errorMessage = error.localizedDescription
+            reloadPreservingError()
+        }
+    }
+
+    private func clearAll() {
+        do {
+            try store.deleteAll()
+            reload()
+        } catch {
+            errorMessage = error.localizedDescription
+            reloadPreservingError()
+        }
+    }
+
+    private func reloadPreservingError() {
+        items = store.loadAll()
+    }
+
+    private func fileDetails(for item: PendingTranscriptionItem) -> String {
+        let filename = item.audioURL?.lastPathComponent
+            ?? item.manifestURL?.lastPathComponent
+            ?? item.record.audioFilename
+        guard let audioByteCount = item.audioByteCount else {
+            return filename
+        }
+        return "\(filename) · \(ByteCountFormatter.string(fromByteCount: audioByteCount, countStyle: .file))"
+    }
+
+    private var title: String { l.lang == .zh ? "失败录音" : "Failed Recordings" }
+    private var description: String {
+        l.lang == .zh
+            ? "转写请求开始后若失败，原始录音会保存在本机。你可以在 Finder 中查看，或在这里永久删除。"
+            : "If transcription fails after a request starts, the original recording is kept on this Mac. Reveal it in Finder or permanently delete it here."
+    }
+    private var emptyState: String {
+        l.lang == .zh ? "没有待处理的失败录音。" : "No failed recordings are pending."
+    }
+    private var itemCountLabel: String {
+        l.lang == .zh ? "\(items.count) 份本地录音" : "\(items.count) local recordings"
+    }
+    private var revealLabel: String { l.lang == .zh ? "在 Finder 显示" : "Reveal in Finder" }
+    private var deleteLabel: String { l.lang == .zh ? "删除录音" : "Delete Recording" }
+    private var clearAllLabel: String { l.lang == .zh ? "全部删除" : "Delete All" }
+    private var cancelLabel: String { l.lang == .zh ? "取消" : "Cancel" }
+    private var deleteConfirmation: String {
+        l.lang == .zh
+            ? "该录音及其恢复信息将从本机永久删除。"
+            : "This recording and its recovery metadata will be permanently deleted from this Mac."
+    }
+    private var clearAllConfirmation: String {
+        l.lang == .zh
+            ? "所有失败录音及恢复信息都将从本机永久删除，此操作无法撤销。"
+            : "All failed recordings and recovery metadata will be permanently deleted from this Mac. This cannot be undone."
+    }
+
+    private static let dateFormatter: DateFormatter = {
+        let formatter = DateFormatter()
+        formatter.dateStyle = .medium
+        formatter.timeStyle = .medium
+        return formatter
+    }()
+}

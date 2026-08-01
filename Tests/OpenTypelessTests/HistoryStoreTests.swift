@@ -60,4 +60,47 @@ final class HistoryStoreTests: XCTestCase {
         XCTAssertEqual(reloadedStore.loadAll().map(\.text), ["Claude Code"])
         XCTAssertEqual(reloadedStore.retentionPolicy(), .keepWeek)
     }
+
+    func testDeleteRemovesOnlyMatchingEntry() throws {
+        store.append(text: "Keep")
+        store.append(text: "Delete")
+        let entries = store.loadAll()
+        let deleteID = entries.first { $0.text == "Delete" }!.id
+
+        XCTAssertTrue(try store.delete(id: deleteID))
+        XCTAssertEqual(store.loadAll().map(\.text), ["Keep"])
+        XCTAssertFalse(try store.delete(id: UUID()))
+    }
+
+    func testDeleteAllRemovesEveryEntryAndKeepsRetentionPolicy() throws {
+        store.append(text: "First")
+        store.append(text: "Second")
+        store.setRetentionPolicy(.keepWeek)
+
+        XCTAssertEqual(try store.deleteAll(), 2)
+        XCTAssertTrue(store.loadAll().isEmpty)
+        XCTAssertEqual(store.retentionPolicy(), .keepWeek)
+        XCTAssertEqual(try store.deleteAll(), 0)
+    }
+
+    func testDeleteRemovesTranscriptBytesFromDatabaseAndWAL() throws {
+        let transcript = "sensitive-transcript-\(UUID().uuidString)"
+        store.append(text: transcript)
+        let id = try XCTUnwrap(store.loadAll().first?.id)
+
+        XCTAssertTrue(try store.delete(id: id))
+
+        let transcriptData = Data(transcript.utf8)
+        for url in [
+            dbURL!,
+            URL(fileURLWithPath: dbURL.path + "-wal"),
+            URL(fileURLWithPath: dbURL.path + "-shm"),
+        ] where FileManager.default.fileExists(atPath: url.path) {
+            let fileData = try Data(contentsOf: url)
+            XCTAssertNil(
+                fileData.range(of: transcriptData),
+                "Deleted transcript bytes remain in \(url.lastPathComponent)"
+            )
+        }
+    }
 }

@@ -18,6 +18,10 @@ struct MenuBarView: View {
             }
             .keyboardShortcut(",", modifiers: .command)
 
+            Button("Privacy Policy...") {
+                appDelegate.showPrivacyPolicy()
+            }
+
             Divider()
 
             Button("Quit") {

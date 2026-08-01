@@ -3,15 +3,21 @@ import Foundation
 @MainActor
 final class DictationSessionCoordinator: ObservableObject {
     private let audioRecorder = AudioRecorder()
-    let transcriptionService = TranscriptionService()
+    let transcriptionService: TranscriptionService
     private let dictionaryStore: DictionaryStore
     private let historyStore: HistoryStore
     private let pendingTranscriptionStore: PendingTranscriptionStore
     private let popupController = ResultPopupController()
     private let overlay = ProgressOverlayController.shared
     private var outputSnapshot: OutputTargetSnapshot?
+    private var requestConfiguration: TranscriptionRequestConfiguration?
+    private var configurationPreparationTask: Task<Void, Never>?
+    private var configurationPreparationID: UUID?
+    private var processingTask: Task<Void, Never>?
+    private var pendingInvalidationRequirement: AppSetupRequirement?
     private var lastToggleTime: Date?
     private let doubleTapThreshold: TimeInterval = 0.4
+    var onSetupRequired: ((AppSetupRequirement) -> Void)?
 
     /// The last transcription result (for test UI in settings)
     @Published var lastTestResult: String = ""
@@ -20,11 +26,13 @@ final class DictationSessionCoordinator: ObservableObject {
 
     init(
         appState: AppState,
+        transcriptionService: TranscriptionService = TranscriptionService(),
         dictionaryStore: DictionaryStore = .shared,
         historyStore: HistoryStore = .shared,
         pendingTranscriptionStore: PendingTranscriptionStore = .shared
     ) {
         self.appState = appState
+        self.transcriptionService = transcriptionService
         self.dictionaryStore = dictionaryStore
         self.historyStore = historyStore
         self.pendingTranscriptionStore = pendingTranscriptionStore
@@ -42,7 +50,11 @@ final class DictationSessionCoordinator: ObservableObject {
 
         switch appState.status {
         case .idle:
-            startRecording()
+            if configurationPreparationTask == nil {
+                startRecording()
+            } else {
+                cancelPendingRecordingStart()
+            }
         case .recording:
             if let last = lastToggleTime, now.timeIntervalSince(last) < doubleTapThreshold {
                 cancelRecording()
@@ -57,6 +69,7 @@ final class DictationSessionCoordinator: ObservableObject {
     func cancelRecording() {
         guard appState.status == .recording else { return }
         audioRecorder.cancel()
+        requestConfiguration = nil
         appState.status = .idle
         overlay.dismiss()
     }
@@ -64,9 +77,65 @@ final class DictationSessionCoordinator: ObservableObject {
     // MARK: - Recording
 
     func startRecording() {
-        guard appState.status == .idle else { return }
+        guard appState.status == .idle, configurationPreparationTask == nil else { return }
 
+        let service = transcriptionService
+        let preparationID = UUID()
+        configurationPreparationID = preparationID
+        configurationPreparationTask = Task { [weak self] in
+            let result = await Task.detached(priority: .userInitiated) {
+                Result { try service.prepareRequestConfiguration() }
+            }.value
+            guard let self, configurationPreparationID == preparationID else { return }
+            configurationPreparationID = nil
+            configurationPreparationTask = nil
+            guard appState.status == .idle else { return }
+            finishStartingRecording(with: result)
+        }
+    }
+
+    private func cancelPendingRecordingStart() {
+        configurationPreparationID = nil
+        configurationPreparationTask?.cancel()
+        configurationPreparationTask = nil
+        requestConfiguration = nil
+    }
+
+    func configurationDidBecomeInvalid(_ requirement: AppSetupRequirement) {
+        cancelPendingRecordingStart()
+        switch appState.status {
+        case .recording:
+            cancelRecording()
+        case .processing:
+            pendingInvalidationRequirement = requirement
+            processingTask?.cancel()
+        case .idle, .error:
+            break
+        }
+        onSetupRequired?(requirement)
+    }
+
+    func currentSetupRequirement() async -> AppSetupRequirement? {
+        let service = transcriptionService
+        let result = await Task.detached(priority: .userInitiated) {
+            Result { try service.prepareRequestConfiguration() }
+        }.value
+        switch result {
+        case .success:
+            return nil
+        case .failure(let error):
+            return AppSetupRequirement(error: error)
+                ?? .credentialStoreUnavailable(error.localizedDescription)
+        }
+    }
+
+    private func finishStartingRecording(
+        with result: Result<TranscriptionRequestConfiguration, Error>
+    ) {
         do {
+            let configuration = try result.get()
+            try transcriptionService.validatePreparedConfiguration(configuration)
+            requestConfiguration = configuration
             try audioRecorder.startRecording()
             appState.status = .recording
             overlay.audioLevelProvider = { [weak self] in
@@ -74,7 +143,12 @@ final class DictationSessionCoordinator: ObservableObject {
             }
             overlay.show(state: .recording)
         } catch {
+            requestConfiguration = nil
             appState.status = .idle
+            if let requirement = AppSetupRequirement(error: error) {
+                onSetupRequired?(requirement)
+                return
+            }
             showError("Failed to start recording: \(error.localizedDescription)")
         }
     }
@@ -86,18 +160,22 @@ final class DictationSessionCoordinator: ObservableObject {
         appState.status = .processing
         overlay.update(state: .transcribing)
 
-        Task {
-            await processRecording()
+        processingTask = Task { [weak self] in
+            await self?.processRecording()
+            self?.processingTask = nil
         }
     }
 
     // MARK: - Processing pipeline
 
     private func processRecording() async {
+        defer { pendingInvalidationRequirement = nil }
         let audioURL: URL
         do {
             audioURL = try audioRecorder.stopRecording()
         } catch {
+            requestConfiguration = nil
+            outputSnapshot = nil
             appState.status = .idle
             showError("Recording failed: \(error.localizedDescription)")
             return
@@ -105,6 +183,7 @@ final class DictationSessionCoordinator: ObservableObject {
 
         var shouldCleanUpAudio = true
         defer {
+            requestConfiguration = nil
             if shouldCleanUpAudio {
                 AudioRecorder.cleanUp(url: audioURL)
             }
@@ -121,6 +200,7 @@ final class DictationSessionCoordinator: ObservableObject {
                 audioURL: audioURL,
                 prompt: makeTranscriptionPrompt(),
                 silenceRanges: audioRecorder.observedSilenceRanges(),
+                configuration: requestConfiguration,
                 onProgress: { [weak self] current, total in
                     self?.overlay.updateTranscriptionProgress(
                         current: current,
@@ -128,15 +208,26 @@ final class DictationSessionCoordinator: ObservableObject {
                     )
                 }
             )
+            try Task.checkCancellation()
         } catch {
-            shouldCleanUpAudio = false
-            if case TranscriptionError.partialResult(let text, _, _, _) = error {
+            let setupWasAlreadyPresented = pendingInvalidationRequirement != nil
+            if let requirement = AppSetupRequirement(error: error)
+                ?? pendingInvalidationRequirement {
+                overlay.dismiss()
+                appState.status = .idle
+                outputSnapshot = nil
+                if !setupWasAlreadyPresented {
+                    onSetupRequired?(requirement)
+                }
+            } else if case TranscriptionError.partialResult(let text, _, _, _) = error {
+                shouldCleanUpAudio = false
                 handlePartialResult(
                     text,
                     audioURL: audioURL,
                     error: error
                 )
             } else {
+                shouldCleanUpAudio = false
                 handleRecoverableFailure(
                     audioURL: audioURL,
                     partialText: nil,
@@ -177,11 +268,23 @@ final class DictationSessionCoordinator: ObservableObject {
         let result = await InsertionStrategy.insert(text: correctedText, snapshot: snapshot)
 
         switch result {
-        case .insertedViaAX, .insertedViaClipboard:
+        case .insertedViaAX, .pasteShortcutPosted:
             handlePostInsertionObservation(originalText: correctedText)
             break
         case .showPopup(let text):
             popupController.show(text: text)
+        case .showRecoveryPopup(let text, let recoveryWindow):
+            let duration = recoveryWindow.durationSeconds
+            let message = """
+            Automatic insertion could not be verified. The transcription will remain in your clipboard for \(duration) seconds. If it did not appear in the target app, press Command-V within \(duration) seconds or use Copy below at any time.
+
+            \(text)
+            """
+            popupController.show(
+                text: message,
+                copyText: text,
+                presentation: .preserveTargetFocus
+            )
         }
 
         appState.status = .idle
@@ -218,11 +321,13 @@ final class DictationSessionCoordinator: ObservableObject {
         )
         recordHistory(finalText: correctedText)
         lastTestResult = correctedText
-        InsertionStrategy.copyToClipboard(correctedText)
+        let clipboardRecoveryWindow = InsertionStrategy
+            .stageTemporaryClipboardRecovery(correctedText)
 
         handleRecoverableFailure(
             audioURL: audioURL,
             partialText: correctedText,
+            clipboardRecoveryWindow: clipboardRecoveryWindow,
             error: error
         )
     }
@@ -230,6 +335,7 @@ final class DictationSessionCoordinator: ObservableObject {
     private func handleRecoverableFailure(
         audioURL: URL,
         partialText: String?,
+        clipboardRecoveryWindow: ClipboardRecoveryWindow? = nil,
         error: Error
     ) {
         let recoveryURL: URL
@@ -253,16 +359,26 @@ final class DictationSessionCoordinator: ObservableObject {
 
         let message: String
         if let partialText, !partialText.isEmpty {
+            let textRecoveryMessage: String
+            if let clipboardRecoveryWindow {
+                textRecoveryMessage = """
+                The recovered text is in history and will remain in your clipboard for \(clipboardRecoveryWindow.durationSeconds) seconds. Use Copy below at any time.
+                """
+            } else {
+                textRecoveryMessage = """
+                The recovered text is in history. It could not be written to the clipboard; use Copy below to try again.
+                """
+            }
             if isPersisted {
                 message = """
-                Transcription was only partially completed. The recovered text is in your clipboard and history.
+                Transcription was only partially completed. \(textRecoveryMessage)
 
-                The original recording was saved for retry:
+                The original recording was saved for recovery:
                 \(recoveryURL.path)
                 """
             } else {
                 message = """
-                Transcription was only partially completed. The recovered text is in your clipboard and history.
+                Transcription was only partially completed. \(textRecoveryMessage)
 
                 The recording could not be moved to persistent storage. Copy it from this temporary path before macOS removes it:
                 \(recoveryURL.path)

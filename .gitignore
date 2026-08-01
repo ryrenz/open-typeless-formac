@@ -16,6 +16,7 @@ xcuserdata/
 # Build
 .build/
 build/
+dist/
 
 # macOS
 .DS_Store

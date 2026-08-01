@@ -1,16 +1,26 @@
 import AppKit
 import SwiftUI
 
+enum ResultPopupPresentation {
+    case interactive
+    case preserveTargetFocus
+}
+
 @MainActor
 final class ResultPopupController: ObservableObject {
     @Published var isShowing = false
     @Published var resultText = ""
     @Published var showCopiedFeedback = false
+    @Published var showCopyFailedFeedback = false
 
     private var popupWindow: NSWindow?
     private var copyText = ""
 
-    func show(text: String, copyText: String? = nil) {
+    func show(
+        text: String,
+        copyText: String? = nil,
+        presentation: ResultPopupPresentation = .interactive
+    ) {
         // Close any existing popup before creating a new one to avoid orphaned windows.
         popupWindow?.close()
         popupWindow = nil
@@ -19,6 +29,7 @@ final class ResultPopupController: ObservableObject {
         self.copyText = copyText ?? text
         isShowing = true
         showCopiedFeedback = false
+        showCopyFailedFeedback = false
 
         let view = ResultPopupView()
             .environmentObject(self)
@@ -36,10 +47,12 @@ final class ResultPopupController: ObservableObject {
         window.isFloatingPanel = true
         window.level = .floating
         window.center()
-        // A non-activating panel can become key (so ESC / Cmd+Return work) without
-        // pulling OpenTypeless to the foreground and stealing focus from the
-        // input field the user was dictating into.
-        window.makeKeyAndOrderFront(nil)
+        switch presentation {
+        case .interactive:
+            window.makeKeyAndOrderFront(nil)
+        case .preserveTargetFocus:
+            window.orderFrontRegardless()
+        }
 
         // Allow ESC to close
         window.isReleasedWhenClosed = false
@@ -48,8 +61,19 @@ final class ResultPopupController: ObservableObject {
     }
 
     func copyAndDismiss() {
-        NSPasteboard.general.clearContents()
-        NSPasteboard.general.setString(copyText, forType: .string)
+        let pasteboard = NSPasteboard.general
+        let originalItems = pasteboard.pasteboardItems?.map(Self.copyPasteboardItem) ?? []
+        showCopyFailedFeedback = false
+
+        pasteboard.clearContents()
+        guard pasteboard.setString(copyText, forType: .string) else {
+            pasteboard.clearContents()
+            if !originalItems.isEmpty {
+                _ = pasteboard.writeObjects(originalItems)
+            }
+            showCopyFailedFeedback = true
+            return
+        }
 
         showCopiedFeedback = true
 
@@ -63,6 +87,16 @@ final class ResultPopupController: ObservableObject {
         popupWindow?.close()
         popupWindow = nil
         isShowing = false
+    }
+
+    private static func copyPasteboardItem(_ item: NSPasteboardItem) -> NSPasteboardItem {
+        let copy = NSPasteboardItem()
+        for type in item.types {
+            if let data = item.data(forType: type) {
+                copy.setData(data, forType: type)
+            }
+        }
+        return copy
     }
 }
 
@@ -88,7 +122,7 @@ struct ResultPopupView: View {
                 Spacer()
 
                 Button(action: { controller.copyAndDismiss() }) {
-                    Text(controller.showCopiedFeedback ? "Copied!" : "Copy")
+                    Text(copyButtonTitle)
                         .frame(minWidth: 70)
                 }
                 .keyboardShortcut(.return, modifiers: .command)
@@ -98,5 +132,15 @@ struct ResultPopupView: View {
             .padding(.bottom, 8)
         }
         .frame(width: 360, height: 200)
+    }
+
+    private var copyButtonTitle: String {
+        if controller.showCopiedFeedback {
+            return "Copied!"
+        }
+        if controller.showCopyFailedFeedback {
+            return "Copy failed"
+        }
+        return "Copy"
     }
 }

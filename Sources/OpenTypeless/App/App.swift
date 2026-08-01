@@ -25,6 +25,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, ObservableObject {
     let hotkeyManager = HotkeyManager()
     let permissionManager = PermissionManager()
     private var accessibilityTimer: Timer?
+    private var configurationNavigationGeneration: UInt = 0
 
     override init() {
         self.coordinator = DictationSessionCoordinator(appState: appState)
@@ -32,6 +33,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate, ObservableObject {
     }
 
     func applicationDidFinishLaunching(_ notification: Notification) {
+        Task.detached(priority: .utility) {
+            do {
+                _ = try TranscriptionConfigurationStore.shared.loadOrMigrate()
+            } catch {
+                print("[OpenTypeless] Configuration migration failed: \(error.localizedDescription)")
+            }
+        }
+
         // Load saved hotkey config
         if let config = HotkeyStore.loadConfig() {
             hotkeyManager.config = config
@@ -43,6 +52,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, ObservableObject {
                 self?.coordinator.handleToggle(action: action)
             }
         }
+        coordinator.onSetupRequired = { [weak self] requirement in
+            self?.showRequiredSetup(requirement)
+        }
 
         // Pre-load Whisper model in background
         coordinator.preloadModel()
@@ -50,20 +62,63 @@ final class AppDelegate: NSObject, NSApplicationDelegate, ObservableObject {
         // Start hotkey manager with accessibility polling
         startHotkeyWithAccessibilityPolling()
 
-        // Show setup window on first launch
-        if !HotkeyStore.isSetupCompleted {
-            DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) { [weak self] in
-                self?.showMainWindow()
-            }
+        // Open the required setup directly instead of waiting for a failed recording.
+        let startupNavigationGeneration = configurationNavigationGeneration
+        Task { [weak self] in
+            try? await Task.sleep(nanoseconds: 500_000_000)
+            await self?.showStartupSetupIfNeeded(
+                expectedGeneration: startupNavigationGeneration
+            )
         }
     }
 
     func showMainWindow() {
+        requestMainWindow()
+    }
+
+    func showPrivacyPolicy() {
+        requestMainWindow(selectedTab: .privacy)
+    }
+
+    private func requestMainWindow(selectedTab: SettingsTab? = nil) {
+        configurationNavigationGeneration &+= 1
+        let generation = configurationNavigationGeneration
+        Task { [weak self] in
+            guard let self else { return }
+            let requirement = await coordinator.currentSetupRequirement()
+            guard configurationNavigationGeneration == generation else { return }
+            presentMainWindow(
+                selectedTab: requirement == nil ? selectedTab : nil,
+                setupRequirement: requirement
+            )
+        }
+    }
+
+    private func showStartupSetupIfNeeded(expectedGeneration: UInt) async {
+        guard configurationNavigationGeneration == expectedGeneration else { return }
+        let requirement = await coordinator.currentSetupRequirement()
+        guard configurationNavigationGeneration == expectedGeneration else { return }
+        if requirement != nil || !HotkeyStore.isSetupCompleted {
+            presentMainWindow(setupRequirement: requirement)
+        }
+    }
+
+    private func showRequiredSetup(_ requirement: AppSetupRequirement) {
+        configurationNavigationGeneration &+= 1
+        presentMainWindow(setupRequirement: requirement)
+    }
+
+    private func presentMainWindow(
+        selectedTab: SettingsTab? = nil,
+        setupRequirement: AppSetupRequirement?
+    ) {
         MainWindowController.shared.show(
             appState: appState,
             coordinator: coordinator,
             permissionManager: permissionManager,
-            hotkeyManager: hotkeyManager
+            hotkeyManager: hotkeyManager,
+            selectedTab: selectedTab,
+            setupRequirement: setupRequirement
         )
     }
 

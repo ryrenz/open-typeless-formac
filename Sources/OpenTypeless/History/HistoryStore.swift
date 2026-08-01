@@ -91,6 +91,34 @@ final class HistoryStore {
         }
     }
 
+    @discardableResult
+    func delete(id: UUID) throws -> Bool {
+        let sql = "DELETE FROM history_entries WHERE id = ?;"
+
+        let statement = try prepareStatement(sql: sql)
+        defer { sqlite3_finalize(statement) }
+
+        sqlite3_bind_text(statement, 1, id.uuidString, -1, sqliteTransient)
+        try step(statement)
+        let didDelete = sqlite3_changes(db) > 0
+        if didDelete {
+            try secureDeletionCheckpoint()
+            postDidChangeNotification()
+        }
+        return didDelete
+    }
+
+    @discardableResult
+    func deleteAll() throws -> Int {
+        try execute(sql: "DELETE FROM history_entries;")
+        let deletedCount = Int(sqlite3_changes(db))
+        if deletedCount > 0 {
+            try secureDeletionCheckpoint()
+            postDidChangeNotification()
+        }
+        return deletedCount
+    }
+
     func retentionPolicy() -> HistoryRetentionPolicy {
         let sql = """
         SELECT value
@@ -157,7 +185,11 @@ final class HistoryStore {
 
             sqlite3_bind_double(statement, 1, cutoffDate.timeIntervalSince1970)
             try step(statement)
-            return Int(sqlite3_changes(db))
+            let deletedCount = Int(sqlite3_changes(db))
+            if deletedCount > 0 {
+                try secureDeletionCheckpoint()
+            }
+            return deletedCount
         } catch {
             assertionFailure("Failed to prune history entries: \(error.localizedDescription)")
             return 0
@@ -181,6 +213,7 @@ final class HistoryStore {
     private func configureDatabase() throws {
         try execute(sql: "PRAGMA journal_mode = WAL;")
         try execute(sql: "PRAGMA synchronous = NORMAL;")
+        try execute(sql: "PRAGMA secure_delete = ON;")
         try execute(sql: "PRAGMA foreign_keys = ON;")
         try execute(sql: """
         CREATE TABLE IF NOT EXISTS history_entries (
@@ -205,6 +238,10 @@ final class HistoryStore {
         guard sqlite3_exec(db, sql, nil, nil, nil) == SQLITE_OK else {
             throw makeError(message: "Failed to execute SQL")
         }
+    }
+
+    private func secureDeletionCheckpoint() throws {
+        try execute(sql: "PRAGMA wal_checkpoint(TRUNCATE);")
     }
 
     private func prepareStatement(sql: String) throws -> OpaquePointer? {

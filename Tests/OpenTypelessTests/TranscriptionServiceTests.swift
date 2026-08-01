@@ -24,14 +24,7 @@ final class TranscriptionServiceTests: XCTestCase {
     }
 
     func testTranscribeWithoutAPIKeyThrows() async {
-        let original = TranscriptionService.apiKey
-        defer { TranscriptionService.apiKey = original }
-
-        // Clear all sources of API key
-        UserDefaults.standard.removeObject(forKey: "apiKey")
-        TranscriptionService.apiKey = ""
-
-        let service = TranscriptionService()
+        let service = TranscriptionService(apiKeyProvider: { "" })
         let fakeURL = FileManager.default.temporaryDirectory.appendingPathComponent("fake.m4a")
         FileManager.default.createFile(atPath: fakeURL.path, contents: Data(), attributes: nil)
         defer { try? FileManager.default.removeItem(at: fakeURL) }
@@ -45,6 +38,134 @@ final class TranscriptionServiceTests: XCTestCase {
     }
 
     func testDefaultModel() {
-        XCTAssertEqual(TranscriptionService.model, "gpt-4o-mini-transcribe")
+        XCTAssertEqual(
+            StoredTranscriptionConfiguration.defaultModel,
+            "gpt-4o-mini-transcribe"
+        )
     }
+
+    func testTranscribeWithoutDataProcessingConsentThrowsBeforeReadingAudio() async {
+        let service = TranscriptionService(
+            apiKeyProvider: { "test-key" },
+            dataProcessingConsentProvider: { _ in false }
+        )
+        let missingURL = FileManager.default.temporaryDirectory
+            .appendingPathComponent("missing-\(UUID().uuidString).m4a")
+
+        do {
+            _ = try await service.transcribe(audioURL: missingURL)
+            XCTFail("Should have thrown")
+        } catch TranscriptionError.dataProcessingConsentRequired {
+            // Expected.
+        } catch {
+            XCTFail("Unexpected error: \(error)")
+        }
+    }
+
+    func testCredentialStoreFailureIsNotReportedAsMissingKey() async {
+        let service = TranscriptionService(
+            apiKeyProvider: { throw CredentialTestError.unavailable }
+        )
+        let missingURL = FileManager.default.temporaryDirectory
+            .appendingPathComponent("missing-\(UUID().uuidString).m4a")
+
+        do {
+            _ = try await service.transcribe(audioURL: missingURL)
+            XCTFail("Should have thrown")
+        } catch TranscriptionError.credentialStoreFailure(let underlying) {
+            XCTAssertTrue(underlying is CredentialTestError)
+        } catch {
+            XCTFail("Unexpected error: \(error)")
+        }
+    }
+
+    func testPrepareRequestConfigurationRejectsInvalidEndpoint() {
+        let service = TranscriptionService(
+            apiKeyProvider: { "test-key" },
+            dataProcessingEndpointProvider: {
+                DataProcessingEndpoint.current(
+                    provider: .custom,
+                    customHost: "example.com/path",
+                    customBasePath: "/v1"
+                )
+            },
+            dataProcessingConsentProvider: { _ in true }
+        )
+
+        XCTAssertThrowsError(try service.prepareRequestConfiguration()) { error in
+            guard case TranscriptionError.invalidEndpoint = error else {
+                return XCTFail("Unexpected error: \(error)")
+            }
+        }
+    }
+
+    func testPrepareRequestConfigurationFreezesProviderAndModel() throws {
+        var endpoint = DataProcessingEndpoint.current(provider: .openAI)
+        var model = "gpt-4o-mini-transcribe"
+        let service = TranscriptionService(
+            apiKeyProvider: { "test-key" },
+            modelProvider: { model },
+            dataProcessingEndpointProvider: { endpoint },
+            dataProcessingConsentProvider: { _ in true }
+        )
+
+        let configuration = try service.prepareRequestConfiguration()
+        endpoint = DataProcessingEndpoint.current(
+            provider: .custom,
+            customHost: "api.example.com",
+            customBasePath: "/v1"
+        )
+        model = "whisper-1"
+
+        XCTAssertEqual(configuration.endpoint.provider, .openAI)
+        XCTAssertEqual(configuration.endpoint.displayAddress, "https://api.openai.com/v1")
+        XCTAssertEqual(configuration.model, "gpt-4o-mini-transcribe")
+    }
+
+    func testConfigurationPreparationWaitsForAtomicSaveTransaction() async throws {
+        var key = "key-a"
+        var endpoint = DataProcessingEndpoint.current(provider: .openAI)
+        var model = "model-a"
+        let endpointB = DataProcessingEndpoint.current(
+            provider: .custom,
+            customHost: "api.example.com",
+            customBasePath: "/v1"
+        )
+        let transactionReachedMidpoint = expectation(
+            description: "Configuration transaction reached midpoint"
+        )
+        let releaseTransaction = DispatchSemaphore(value: 0)
+        let service = TranscriptionService(
+            apiKeyProvider: { key },
+            modelProvider: { model },
+            dataProcessingEndpointProvider: { endpoint },
+            dataProcessingConsentProvider: { _ in true }
+        )
+
+        let writer = Task.detached {
+            TranscriptionConfigurationTransaction.perform {
+                key = "key-b"
+                transactionReachedMidpoint.fulfill()
+                releaseTransaction.wait()
+                endpoint = endpointB
+                model = "model-b"
+            }
+        }
+        await fulfillment(of: [transactionReachedMidpoint], timeout: 1)
+        let reader = Task.detached {
+            try service.prepareRequestConfiguration()
+        }
+
+        releaseTransaction.signal()
+        await writer.value
+        let configuration = try await reader.value
+
+        XCTAssertEqual(configuration.apiKey, "key-b")
+        XCTAssertEqual(configuration.endpoint, endpointB)
+        XCTAssertEqual(configuration.model, "model-b")
+    }
+}
+
+private enum CredentialTestError: Error {
+    case unavailable
 }

@@ -32,7 +32,9 @@ struct L {
     var hotkeys: String { lang == .zh ? "快捷键" : "Hotkeys" }
     var dictionary: String { lang == .zh ? "词汇表" : "Dictionary" }
     var history: String { lang == .zh ? "历史记录" : "History" }
+    var failedRecordings: String { lang == .zh ? "失败录音" : "Failed Recordings" }
     var api: String { "API" }
+    var privacy: String { lang == .zh ? "隐私" : "Privacy" }
     var test: String { lang == .zh ? "测试" : "Test" }
 
     // Permissions
@@ -70,6 +72,34 @@ struct L {
             ? "必须是 OpenAI 兼容的 API 端点"
             : "Must be an OpenAI-compatible API endpoint"
     }
+    var apiKeySaved: String {
+        lang == .zh
+            ? "API Key 已安全保存在 macOS Keychain。输入新 Key 可替换。"
+            : "The API key is stored securely in macOS Keychain. Enter a new key to replace it."
+    }
+    var apiKeyMissing: String {
+        lang == .zh
+            ? "API Key 仅保存在这台 Mac 的 Keychain 中。"
+            : "The API key is stored only in Keychain on this Mac."
+    }
+    var deleteAPIKey: String { lang == .zh ? "删除 API Key" : "Delete API Key" }
+    var deleteAPIKeyConfirmation: String {
+        lang == .zh
+            ? "删除后，在输入新的 API Key 之前无法转写。"
+            : "Transcription will be unavailable until you save a new API key."
+    }
+    var cancel: String { lang == .zh ? "取消" : "Cancel" }
+    var dataProcessing: String { lang == .zh ? "数据处理" : "Data Processing" }
+    var dataProcessingDisclosure: String {
+        lang == .zh
+            ? "转写时，录音、词典提示和生成的文本会发送到下方端点。OpenTypeless 开发者不会接收这些内容；服务商可能按其隐私政策处理或保留数据。"
+            : "During transcription, audio, dictionary hints, and generated text are sent to the endpoint below. The OpenTypeless developer does not receive this content; the provider may process or retain it under its own privacy policy."
+    }
+    var dataProcessingConsent: String {
+        lang == .zh
+            ? "我了解并同意向所选服务商发送这些数据"
+            : "I understand and agree to send this data to the selected provider"
+    }
 
     // Test
     var recording: String { lang == .zh ? "录音" : "Recording" }
@@ -92,7 +122,9 @@ enum SettingsTab: String, CaseIterable {
     case hotkeys
     case dictionary
     case history
+    case failedRecordings
     case api
+    case privacy
     case test
 
     func label(_ l: L) -> String {
@@ -100,7 +132,9 @@ enum SettingsTab: String, CaseIterable {
         case .hotkeys: return l.hotkeys
         case .dictionary: return l.dictionary
         case .history: return l.history
+        case .failedRecordings: return l.failedRecordings
         case .api: return l.api
+        case .privacy: return l.privacy
         case .test: return l.test
         }
     }
@@ -114,37 +148,61 @@ struct MainWindowView: View {
     @EnvironmentObject var permissionManager: PermissionManager
 
     let hotkeyManager: HotkeyManager
+    @ObservedObject var navigation: SettingsNavigation
 
-    @State private var selectedTab: SettingsTab = .hotkeys
     @State private var appLanguage: AppLanguage = AppLanguage.current
 
     private var l: L { L(lang: appLanguage) }
 
     var body: some View {
+        Group {
+            if let requirement = navigation.setupRequirement {
+                SetupGateView(
+                    requirement: requirement,
+                    l: l,
+                    onCompleted: {
+                        navigation.completeSetup()
+                    }
+                )
+            } else {
+                settingsView
+            }
+        }
+        .safeAreaInset(edge: .top, alignment: .trailing) {
+            if navigation.setupRequirement != nil {
+                languagePicker
+                    .frame(width: 150)
+                    .padding(.horizontal, 18)
+                    .padding(.top, 8)
+            }
+        }
+        .frame(width: 680, height: 600)
+        .onAppear {
+            permissionManager.checkAll()
+        }
+    }
+
+    private var settingsView: some View {
         NavigationSplitView {
             VStack {
-                List(SettingsTab.allCases, id: \.self, selection: $selectedTab) { tab in
+                List(
+                    SettingsTab.allCases,
+                    id: \.self,
+                    selection: $navigation.selectedTab
+                ) { tab in
                     Label(tab.label(l), systemImage: tabIcon(tab))
                 }
                 .listStyle(.sidebar)
 
                 Divider()
 
-                Picker("", selection: $appLanguage) {
-                    ForEach(AppLanguage.allCases, id: \.self) { lang in
-                        Text(lang.displayName).tag(lang)
-                    }
-                }
-                .pickerStyle(.segmented)
+                languagePicker
                 .padding(.horizontal, 12)
                 .padding(.bottom, 8)
-                .onChange(of: appLanguage) { _, newValue in
-                    AppLanguage.current = newValue
-                }
             }
             .navigationSplitViewColumnWidth(min: 140, ideal: 160)
         } detail: {
-            switch selectedTab {
+            switch navigation.selectedTab {
             case .hotkeys:
                 HotkeysTabView(hotkeyManager: hotkeyManager, l: l)
                     .environmentObject(permissionManager)
@@ -152,17 +210,38 @@ struct MainWindowView: View {
                 DictionaryTabView(l: l)
             case .history:
                 HistoryTabView(l: l)
+            case .failedRecordings:
+                PendingTranscriptionsTabView(l: l)
             case .api:
-                APITabView(l: l)
+                APITabView(
+                    l: l,
+                    mode: .settings,
+                    onConfigurationChanged: { requirement in
+                        if let requirement {
+                            coordinator.configurationDidBecomeInvalid(requirement)
+                            navigation.presentSetup(requirement)
+                        }
+                    }
+                )
+            case .privacy:
+                PrivacyTabView(l: l)
             case .test:
                 TestTabView(l: l)
                     .environmentObject(appState)
                     .environmentObject(coordinator)
             }
         }
-        .frame(width: 640, height: 500)
-        .onAppear {
-            permissionManager.checkAll()
+    }
+
+    private var languagePicker: some View {
+        Picker("", selection: $appLanguage) {
+            ForEach(AppLanguage.allCases, id: \.self) { lang in
+                Text(lang.displayName).tag(lang)
+            }
+        }
+        .pickerStyle(.segmented)
+        .onChange(of: appLanguage) { _, newValue in
+            AppLanguage.current = newValue
         }
     }
 
@@ -171,8 +250,58 @@ struct MainWindowView: View {
         case .hotkeys: return "keyboard"
         case .dictionary: return "text.book.closed"
         case .history: return "clock.arrow.circlepath"
+        case .failedRecordings: return "waveform.badge.exclamationmark"
         case .api: return "key"
+        case .privacy: return "hand.raised"
         case .test: return "mic"
+        }
+    }
+}
+
+private struct SetupGateView: View {
+    let requirement: AppSetupRequirement
+    let l: L
+    let onCompleted: () -> Void
+
+    @EnvironmentObject var coordinator: DictationSessionCoordinator
+    @State private var isComplete = false
+
+    var body: some View {
+        Group {
+            if isComplete {
+                VStack(spacing: 16) {
+                    Image(systemName: "checkmark.circle.fill")
+                        .font(.system(size: 52))
+                        .foregroundStyle(.green)
+                    Text(l.lang == .zh ? "设置完成" : "Setup complete")
+                        .font(.title2.weight(.semibold))
+                    Text(
+                        l.lang == .zh
+                            ? "现在可以使用快捷键开始语音输入。"
+                            : "You can now use the hotkey to start dictating."
+                    )
+                    .foregroundStyle(.secondary)
+                }
+                .transition(.opacity.combined(with: .scale(scale: 0.96)))
+            } else {
+                APITabView(
+                    l: l,
+                    mode: .setup(requirement),
+                    onConfigurationChanged: { requirement in
+                        if let requirement {
+                            coordinator.configurationDidBecomeInvalid(requirement)
+                            return
+                        }
+                        withAnimation(.easeOut(duration: 0.18)) {
+                            isComplete = true
+                        }
+                        Task { @MainActor in
+                            try? await Task.sleep(nanoseconds: 700_000_000)
+                            onCompleted()
+                        }
+                    }
+                )
+            }
         }
     }
 }
@@ -296,106 +425,474 @@ struct HotkeysTabView: View {
 
 // MARK: - API Tab
 
+enum APIConfigurationMode: Equatable {
+    case settings
+    case setup(AppSetupRequirement)
+}
+
 struct APITabView: View {
     let l: L
+    let mode: APIConfigurationMode
+    let onConfigurationChanged: (AppSetupRequirement?) -> Void
+
     @State private var apiKey: String = ""
     @State private var provider: APIProvider = .openAI
     @State private var customHost: String = ""
     @State private var customBasePath: String = ""
     @State private var selectedModel: String = "gpt-4o-mini-transcribe"
     @State private var saveStatus: String?
+    @State private var saveFailed = false
+    @State private var hasStoredKey = false
+    @State private var showsDeleteKeyConfirmation = false
+    @State private var hasDataProcessingConsent = false
+    @State private var isKeyOperationInProgress = false
+    @State private var hasFinishedInitialLoad = false
+    @State private var configurationRecoveryRequired = false
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 20) {
-            GroupBox(l.provider) {
-                VStack(alignment: .leading, spacing: 8) {
-                    Picker(l.provider, selection: $provider) {
-                        ForEach(APIProvider.allCases) { p in
-                            Text(p.displayName).tag(p)
+        ScrollView {
+            VStack(alignment: .leading, spacing: 14) {
+                if isSetupMode {
+                    VStack(alignment: .leading, spacing: 6) {
+                        Label(
+                            l.lang == .zh ? "完成 OpenTypeless 设置" : "Finish setting up OpenTypeless",
+                            systemImage: "waveform.and.mic"
+                        )
+                        .font(.title2.weight(.semibold))
+                        Text(setupReason)
+                            .foregroundStyle(.secondary)
+                    }
+                    .padding(.bottom, 4)
+                }
+
+                GroupBox(l.provider) {
+                    VStack(alignment: .leading, spacing: 8) {
+                        Picker(l.provider, selection: Binding(
+                            get: { provider },
+                            set: {
+                                provider = $0
+                                resetConsentForEditedEndpoint()
+                            }
+                        )) {
+                            ForEach(APIProvider.allCases) { p in
+                                Text(p.displayName).tag(p)
+                            }
+                        }
+                        .pickerStyle(.segmented)
+
+                        if provider == .custom {
+                            TextField("Host (e.g. api.example.com)", text: Binding(
+                                get: { customHost },
+                                set: {
+                                    customHost = $0
+                                    resetConsentForEditedEndpoint()
+                                }
+                            ))
+                                .textFieldStyle(.roundedBorder)
+                            TextField("Base Path (e.g. /v1)", text: Binding(
+                                get: { customBasePath },
+                                set: {
+                                    customBasePath = $0
+                                    resetConsentForEditedEndpoint()
+                                }
+                            ))
+                                .textFieldStyle(.roundedBorder)
+                            Text(l.customHint)
+                                .font(.caption2)
+                                .foregroundStyle(.secondary)
                         }
                     }
-                    .pickerStyle(.segmented)
+                    .padding(8)
+                }
 
-                    if provider == .custom {
-                        TextField("Host (e.g. space.ai-builders.com)", text: $customHost)
+                GroupBox(l.apiKey) {
+                    VStack(alignment: .leading, spacing: 4) {
+                        SecureField(l.apiKey, text: $apiKey)
                             .textFieldStyle(.roundedBorder)
-                        TextField("Base Path (e.g. /backend/v1)", text: $customBasePath)
-                            .textFieldStyle(.roundedBorder)
-                        Text(l.customHint)
+                        Text(hasStoredKey ? l.apiKeySaved : l.apiKeyMissing)
                             .font(.caption2)
                             .foregroundStyle(.secondary)
-                    }
-                }
-                .padding(8)
-            }
-
-            GroupBox(l.apiKey) {
-                VStack(alignment: .leading, spacing: 4) {
-                    SecureField(l.apiKey, text: $apiKey)
-                        .textFieldStyle(.roundedBorder)
-                    if !TranscriptionService.apiKey.isEmpty && apiKey.isEmpty {
-                        Text("API key is saved. Enter a new one to replace it.")
+                        if configurationRecoveryRequired {
+                            Text(
+                                l.lang == .zh
+                                    ? "已保存的配置无法读取。请输入新的 API Key 并保存，或重置已保存配置。"
+                                    : "The saved configuration cannot be read. Enter a new API key and save, or reset the saved configuration."
+                            )
                             .font(.caption2)
-                            .foregroundStyle(.secondary)
+                            .foregroundStyle(.red)
+                        }
+                        if hasStoredKey || configurationRecoveryRequired {
+                            Button(deleteKeyLabel, role: .destructive) {
+                                showsDeleteKeyConfirmation = true
+                            }
+                            .buttonStyle(.borderless)
+                            .disabled(isKeyOperationInProgress)
+                        }
                     }
+                    .padding(8)
                 }
-                .padding(8)
-            }
 
-            GroupBox(l.model) {
-                Picker(l.model, selection: $selectedModel) {
-                    Text("gpt-4o-mini-transcribe ($0.003/min)").tag("gpt-4o-mini-transcribe")
-                    Text("gpt-4o-transcribe ($0.006/min)").tag("gpt-4o-transcribe")
-                    Text("whisper-1 ($0.006/min)").tag("whisper-1")
+                GroupBox(l.model) {
+                    Picker(l.model, selection: $selectedModel) {
+                        Text("gpt-4o-mini-transcribe ($0.003/min)").tag("gpt-4o-mini-transcribe")
+                        Text("gpt-4o-transcribe ($0.006/min)").tag("gpt-4o-transcribe")
+                        Text("whisper-1 ($0.006/min)").tag("whisper-1")
+                    }
+                    .pickerStyle(.menu)
+                    .padding(8)
                 }
-                .pickerStyle(.menu)
-                .padding(8)
-            }
 
-            HStack {
-                Spacer()
-                if let status = saveStatus {
-                    Text(status).foregroundStyle(.green).font(.caption)
+                GroupBox(l.dataProcessing) {
+                    VStack(alignment: .leading, spacing: 10) {
+                        Text(l.dataProcessingDisclosure)
+                            .font(.callout)
+                            .foregroundStyle(.secondary)
+
+                        HStack(spacing: 10) {
+                            Image(systemName: "arrow.up.right.circle.fill")
+                                .font(.title2)
+                                .foregroundStyle(Color.accentColor)
+                            VStack(alignment: .leading, spacing: 2) {
+                                Text(l.lang == .zh ? "录音将发送到" : "Audio will be sent to")
+                                    .font(.caption)
+                                    .foregroundStyle(.secondary)
+                                Text(dataProcessingEndpoint.displayAddress)
+                                    .font(.system(.callout, design: .monospaced).weight(.semibold))
+                                    .textSelection(.enabled)
+                            }
+                        }
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .padding(10)
+                        .background(
+                            Color.accentColor.opacity(0.08),
+                            in: RoundedRectangle(cornerRadius: 10, style: .continuous)
+                        )
+
+                        Text(
+                            l.lang == .zh
+                                ? "首次使用新的 Provider 或地址时需要确认；切回已批准的相同地址会自动恢复同意。"
+                                : "A new provider or address requires confirmation. Returning to the exact same approved address restores consent automatically."
+                        )
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+
+                        Toggle(
+                            l.dataProcessingConsent,
+                            isOn: Binding(
+                                get: { hasDataProcessingConsent },
+                                set: { updateDataProcessingConsent($0) }
+                            )
+                        )
+                        .toggleStyle(.checkbox)
+                        .font(.callout.weight(.medium))
+
+                        PrivacyPolicyButton(l: l)
+
+                        if !isSetupMode {
+                            Button(
+                                l.lang == .zh
+                                    ? "撤销所有已保存的数据处理同意"
+                                    : "Revoke consent for all saved destinations",
+                                role: .destructive
+                            ) {
+                                revokeAllDataProcessingConsent()
+                            }
+                            .buttonStyle(.borderless)
+                        }
+                    }
+                    .padding(8)
                 }
-                Button(l.save) { save() }
-                    .buttonStyle(.borderedProminent)
-            }
 
-            Spacer()
+                HStack {
+                    if let status = saveStatus {
+                        Text(status)
+                            .foregroundStyle(saveFailed ? .red : .green)
+                            .font(.caption)
+                    }
+                    Spacer()
+                    Button(isSetupMode ? continueLabel : l.save) { save() }
+                        .buttonStyle(.borderedProminent)
+                        .disabled(
+                            isKeyOperationInProgress
+                                || (isSetupMode && !canCompleteSetup)
+                        )
+                }
+            }
+            .padding(20)
+            .disabled(isKeyOperationInProgress)
         }
-        .padding(20)
         .onAppear { load() }
+        .confirmationDialog(
+            deleteKeyLabel,
+            isPresented: $showsDeleteKeyConfirmation,
+            titleVisibility: .visible
+        ) {
+            Button(deleteKeyLabel, role: .destructive) { deleteAPIKey() }
+            Button(l.cancel, role: .cancel) {}
+        } message: {
+            Text(deleteKeyConfirmation)
+        }
     }
 
     private func load() {
-        // Only load key from UserDefaults, not env var (avoid persisting env secrets)
-        apiKey = UserDefaults.standard.string(forKey: "apiKey") ?? ""
-        provider = TranscriptionService.provider
-        customHost = TranscriptionService.customHost
-        customBasePath = TranscriptionService.customBasePath
-        selectedModel = UserDefaults.standard.string(forKey: "transcriptionModel") ?? TranscriptionService.model
-
-        if let stored = UserDefaults.standard.string(forKey: "apiProvider"),
-           let p = APIProvider(rawValue: stored) { provider = p }
-        if let h = UserDefaults.standard.string(forKey: "customHost") { customHost = h }
-        if let bp = UserDefaults.standard.string(forKey: "customBasePath") { customBasePath = bp }
+        apiKey = ""
+        guard !isKeyOperationInProgress else { return }
+        isKeyOperationInProgress = true
+        Task {
+            defer {
+                isKeyOperationInProgress = false
+                hasFinishedInitialLoad = true
+            }
+            do {
+                let configuration = try await Task.detached(priority: .userInitiated) {
+                    try TranscriptionConfigurationTransaction.perform {
+                        try TranscriptionConfigurationStore.shared.loadOrMigrate()
+                    }
+                }.value
+                provider = configuration.provider
+                customHost = configuration.customHost
+                customBasePath = configuration.customBasePath
+                selectedModel = configuration.model
+                hasStoredKey = configuration.apiKey != nil
+                configurationRecoveryRequired = false
+                hasDataProcessingConsent = DataProcessingConsentStore.shared.hasConsent(
+                    for: configuration.endpoint
+                )
+            } catch is TranscriptionConfigurationStoreError {
+                hasStoredKey = false
+                hasDataProcessingConsent = false
+                configurationRecoveryRequired = true
+                showStatus(
+                    l.lang == .zh
+                        ? "已保存的配置损坏或来自较新版本，请输入新的 API Key 保存，或重置配置。"
+                        : "The saved configuration is damaged or from a newer version. Enter a new API key and save, or reset it.",
+                    failed: true
+                )
+            } catch {
+                showStatus(error.localizedDescription, failed: true)
+            }
+        }
     }
 
     private func save() {
-        if !apiKey.isEmpty { TranscriptionService.apiKey = apiKey }
-        TranscriptionService.provider = provider
-        if provider == .custom {
-            if !customHost.isEmpty { TranscriptionService.customHost = customHost }
-            if !customBasePath.isEmpty { TranscriptionService.customBasePath = customBasePath }
+        guard !isKeyOperationInProgress else { return }
+        let endpoint = dataProcessingEndpoint
+        guard endpoint.isValid else {
+            showStatus(
+                l.lang == .zh
+                    ? "Custom endpoint 无效。Host 只能填写域名或 IP，路径请单独填写。"
+                    : "Invalid custom endpoint. Enter only a domain or IP in Host and put the path separately.",
+                failed: true
+            )
+            return
         }
-        TranscriptionService.model = selectedModel
-        UserDefaults.standard.set(provider.rawValue, forKey: "apiProvider")
-        UserDefaults.standard.set(customHost, forKey: "customHost")
-        UserDefaults.standard.set(customBasePath, forKey: "customBasePath")
-        UserDefaults.standard.set(selectedModel, forKey: "transcriptionModel")
+        let providerToSave = provider
+        let modelToSave = selectedModel
+        let keyToSave = apiKey
+        let consentToSave = hasDataProcessingConsent
+        let requiresReplacement = configurationRecoveryRequired
+        let normalizedCustomEndpoint = DataProcessingEndpoint.current(
+            provider: .custom,
+            customHost: customHost,
+            customBasePath: customBasePath
+        )
+        isKeyOperationInProgress = true
+        Task {
+            defer { isKeyOperationInProgress = false }
+            do {
+                let didSaveKey = try await Task.detached(priority: .userInitiated) {
+                    try TranscriptionConfigurationTransaction.perform {
+                        let hasNewKey = !keyToSave
+                            .trimmingCharacters(in: .whitespacesAndNewlines)
+                            .isEmpty
+                        var configuration: StoredTranscriptionConfiguration
+                        if requiresReplacement {
+                            guard hasNewKey else {
+                                throw APIKeyStoreError.emptyKey
+                            }
+                            configuration = StoredTranscriptionConfiguration(
+                                apiKey: keyToSave,
+                                provider: providerToSave,
+                                customHost: normalizedCustomEndpoint.host,
+                                customBasePath: normalizedCustomEndpoint.basePath,
+                                model: modelToSave
+                            )
+                        } else {
+                            configuration = try TranscriptionConfigurationStore.shared
+                                .loadOrMigrate()
+                            if hasNewKey {
+                                configuration.apiKey = keyToSave
+                            }
+                            configuration.provider = providerToSave
+                            configuration.customHost = normalizedCustomEndpoint.host
+                            configuration.customBasePath = normalizedCustomEndpoint.basePath
+                            configuration.model = modelToSave
+                        }
 
-        saveStatus = l.saved
-        DispatchQueue.main.asyncAfter(deadline: .now() + 2) { saveStatus = nil }
+                        try TranscriptionConfigurationStore.shared.save(configuration)
+                        if consentToSave {
+                            DataProcessingConsentStore.shared.grantConsent(for: endpoint)
+                        } else {
+                            DataProcessingConsentStore.shared.revokeConsent(for: endpoint)
+                        }
+                        return hasNewKey
+                    }
+                }.value
+                if didSaveKey {
+                    apiKey = ""
+                    hasStoredKey = true
+                }
+                configurationRecoveryRequired = false
+                if providerToSave == .custom {
+                    customHost = endpoint.host
+                    customBasePath = endpoint.basePath
+                }
+
+                if consentToSave {
+                    showStatus(l.saved, failed: false)
+                } else {
+                    showStatus(
+                        l.lang == .zh
+                            ? "设置已保存；同意数据处理后才能转写。"
+                            : "Settings saved; consent is required before transcription.",
+                        failed: false
+                    )
+                }
+                onConfigurationChanged(currentRequirement)
+            } catch {
+                showStatus(error.localizedDescription, failed: true)
+            }
+        }
+    }
+
+    private func deleteAPIKey() {
+        guard !isKeyOperationInProgress else { return }
+        isKeyOperationInProgress = true
+        Task {
+            defer { isKeyOperationInProgress = false }
+            do {
+                let result = try await Task.detached(priority: .userInitiated) {
+                    try TranscriptionConfigurationTransaction.perform {
+                        try TranscriptionConfigurationStore.shared.deleteAPIKey()
+                    }
+                }.value
+                apiKey = ""
+                hasStoredKey = false
+                let wasRecoveringConfiguration = configurationRecoveryRequired
+                if wasRecoveringConfiguration {
+                    DataProcessingConsentStore.shared.revokeConsent()
+                }
+                configurationRecoveryRequired = false
+                onConfigurationChanged(.apiKeyMissing)
+                if result.legacyCleanupErrorDescription != nil {
+                    showStatus(
+                        l.lang == .zh
+                            ? "当前 API Key 已删除，但旧版 Keychain 副本暂未清理；App 会自动重试。"
+                            : "The active API key was deleted, but a legacy Keychain copy could not be cleaned up yet. The app will retry automatically.",
+                        failed: true
+                    )
+                } else {
+                    showStatus(
+                        l.lang == .zh ? "API Key 已删除。" : "API key deleted.",
+                        failed: false
+                    )
+                }
+            } catch {
+                showStatus(error.localizedDescription, failed: true)
+            }
+        }
+    }
+
+    private func showStatus(_ status: String, failed: Bool) {
+        saveStatus = status
+        saveFailed = failed
+        DispatchQueue.main.asyncAfter(deadline: .now() + 3) {
+            saveStatus = nil
+        }
+    }
+
+    private var dataProcessingEndpoint: DataProcessingEndpoint {
+        .current(
+            provider: provider,
+            customHost: customHost,
+            customBasePath: customBasePath
+        )
+    }
+
+    private func resetConsentForEditedEndpoint() {
+        hasDataProcessingConsent = DataProcessingConsentStore.shared.hasConsent(
+            for: dataProcessingEndpoint
+        )
+    }
+
+    private func updateDataProcessingConsent(_ isGranted: Bool) {
+        hasDataProcessingConsent = isGranted
+        guard !isGranted else { return }
+        DataProcessingConsentStore.shared.revokeConsent(for: dataProcessingEndpoint)
+        onConfigurationChanged(.dataProcessingConsentRequired)
+    }
+
+    private func revokeAllDataProcessingConsent() {
+        DataProcessingConsentStore.shared.revokeConsent()
+        hasDataProcessingConsent = false
+        onConfigurationChanged(.dataProcessingConsentRequired)
+    }
+
+    private var isSetupMode: Bool {
+        if case .setup = mode { return true }
+        return false
+    }
+
+    private var continueLabel: String {
+        l.lang == .zh ? "同意并继续" : "Agree and continue"
+    }
+
+    private var deleteKeyLabel: String {
+        guard configurationRecoveryRequired else { return l.deleteAPIKey }
+        return l.lang == .zh ? "重置已保存配置" : "Reset saved configuration"
+    }
+
+    private var deleteKeyConfirmation: String {
+        guard configurationRecoveryRequired else { return l.deleteAPIKeyConfirmation }
+        return l.lang == .zh
+            ? "这会删除无法读取的配置、API Key，并撤销所有已保存的数据处理同意。"
+            : "This removes the unreadable configuration and API key, and revokes all saved data-processing consent."
+    }
+
+    private var canCompleteSetup: Bool {
+        hasFinishedInitialLoad
+            && dataProcessingEndpoint.isValid
+            && hasDataProcessingConsent
+            && (hasStoredKey || !apiKey.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+    }
+
+    private var currentRequirement: AppSetupRequirement? {
+        guard hasStoredKey else { return .apiKeyMissing }
+        guard dataProcessingEndpoint.isValid else { return .invalidEndpoint }
+        guard hasDataProcessingConsent else { return .dataProcessingConsentRequired }
+        return nil
+    }
+
+    private var setupReason: String {
+        guard case .setup(let requirement) = mode else { return "" }
+        switch requirement {
+        case .apiKeyMissing:
+            return l.lang == .zh
+                ? "添加 API Key 并确认录音发送位置后才能开始使用。"
+                : "Add an API key and confirm where audio is sent before using dictation."
+        case .credentialStoreUnavailable(let detail):
+            return l.lang == .zh
+                ? "暂时无法访问 Keychain：\(detail)"
+                : "Keychain is temporarily unavailable: \(detail)"
+        case .invalidEndpoint:
+            return l.lang == .zh
+                ? "当前自定义地址无效，请修正后继续。"
+                : "The current custom endpoint is invalid. Correct it to continue."
+        case .dataProcessingConsentRequired:
+            return l.lang == .zh
+                ? "确认当前数据接收方后即可继续使用语音输入。"
+                : "Confirm the current data recipient to continue using dictation."
+        }
     }
 }
 

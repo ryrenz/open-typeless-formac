@@ -1,8 +1,17 @@
 import ApplicationServices
 import Foundation
 
+enum AccessibilityInsertionResult {
+    case inserted
+    case rejected
+    case indeterminate
+}
+
 enum AccessibilityHelper {
-    static func insertText(_ text: String, into element: AXUIElement) -> Bool {
+    static func insertText(
+        _ text: String,
+        into element: AXUIElement
+    ) -> AccessibilityInsertionResult {
         // Preferred: replace the current selection (or insert at the caret) surgically.
         // This avoids reading and rewriting the element's entire value, which is
         // expensive and risky for large fields (e.g. a terminal's scrollback buffer).
@@ -12,7 +21,10 @@ enum AccessibilityHelper {
             text as CFTypeRef
         )
         if selectedTextResult == .success {
-            return true
+            return .inserted
+        }
+        if isIndeterminate(selectedTextResult) {
+            return .indeterminate
         }
 
         // Fallback: splice the text into the full value at the selected range.
@@ -22,37 +34,66 @@ enum AccessibilityHelper {
         var selectedRange: AnyObject?
         let rangeResult = AXUIElementCopyAttributeValue(element, kAXSelectedTextRangeAttribute as CFString, &selectedRange)
 
+        if isIndeterminate(valueResult) || isIndeterminate(rangeResult) {
+            return .indeterminate
+        }
+
         if valueResult == .success,
            rangeResult == .success,
            let currentStr = currentValue as? String,
-           let selectedRange = selectedRange {
+           let selectedRange = selectedRange,
+           CFGetTypeID(selectedRange) == AXValueGetTypeID() {
             let rangeValue = selectedRange as! AXValue
             var cfRange = CFRange()
-            if AXValueGetValue(rangeValue, .cfRange, &cfRange) {
-                // Clamp the range to the actual string bounds — a stale or
-                // out-of-range selection would otherwise crash the index math.
-                let count = currentStr.count
-                let location = max(0, min(cfRange.location, count))
-                let length = max(0, min(cfRange.length, count - location))
-
-                var mutable = currentStr
-                let start = mutable.index(mutable.startIndex, offsetBy: location)
-                let end = mutable.index(start, offsetBy: length)
-                mutable.replaceSubrange(start..<end, with: text)
-
-                let setResult = AXUIElementSetAttributeValue(element, kAXValueAttribute as CFString, mutable as CFTypeRef)
+            if AXValueGetType(rangeValue) == .cfRange,
+               AXValueGetValue(rangeValue, .cfRange, &cfRange) {
+                let replacement = replacingUTF16Range(
+                    in: currentStr,
+                    range: cfRange,
+                    with: text
+                )
+                let setResult = AXUIElementSetAttributeValue(
+                    element,
+                    kAXValueAttribute as CFString,
+                    replacement.value as CFTypeRef
+                )
                 if setResult == .success {
-                    let newLocation = location + text.count
-                    var newRange = CFRange(location: newLocation, length: 0)
+                    var newRange = CFRange(location: replacement.caretLocation, length: 0)
                     if let newRangeValue = AXValueCreate(.cfRange, &newRange) {
                         AXUIElementSetAttributeValue(element, kAXSelectedTextRangeAttribute as CFString, newRangeValue)
                     }
-                    return true
+                    return .inserted
+                }
+                if isIndeterminate(setResult) {
+                    return .indeterminate
                 }
             }
         }
 
-        return false
+        return .rejected
+    }
+
+    static func replacingUTF16Range(
+        in currentValue: String,
+        range: CFRange,
+        with replacement: String
+    ) -> (value: String, caretLocation: CFIndex) {
+        let mutable = NSMutableString(string: currentValue)
+        let location = max(0, min(range.location, mutable.length))
+        let length = max(0, min(range.length, mutable.length - location))
+
+        mutable.replaceCharacters(
+            in: NSRange(location: location, length: length),
+            with: replacement
+        )
+        return (
+            value: mutable as String,
+            caretLocation: location + (replacement as NSString).length
+        )
+    }
+
+    private static func isIndeterminate(_ error: AXError) -> Bool {
+        error == .cannotComplete || error == .failure
     }
 
     static func isTextInput(_ element: AXUIElement) -> Bool {

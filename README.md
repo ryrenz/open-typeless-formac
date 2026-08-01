@@ -9,7 +9,7 @@ Inspired by [Typeless](https://www.typeless.com/).
 ## Features
 
 - **Toggle-to-talk**: Press hotkey to start, press again to stop (no need to hold)
-- **Auto-insert**: Transcribed text is pasted into the focused input field via Cmd+V
+- **Auto-insert**: Uses Accessibility insertion where reliable, with guarded clipboard paste for compatibility targets
 - **Popup fallback**: If no text field is focused, a floating panel shows the result with a Copy button
 - **Progress overlay**: A bottom-center overlay shows recording/transcribing status with audio level
 - **Double-tap cancel**: Quickly press the hotkey twice to cancel recording
@@ -17,7 +17,9 @@ Inspired by [Typeless](https://www.typeless.com/).
 - **Custom API endpoint**: Works with any OpenAI-compatible API (Groq, Together AI, etc.)
 - **Smart formatting**: Transcription output is automatically post-processed — Chinese punctuation for Chinese/mixed content, English punctuation for English-only, pangu-style spacing between CJK and Latin, natural paragraph breaks, and enumeration converted to numbered lists (1. 2. 3.)
 - **Dictionary**: Add proper nouns (product names, people, jargon) that are often misrecognized. Entries are sent to the model as transcription hints so it prefers the correct spelling, and silent hallucinations of dictionary terms are filtered out.
-- **History**: Every completed transcription is saved locally. Browse past results in the History tab, copy any entry with one click, and choose a retention policy (forever / 1 month / 1 week / 24 hours).
+- **History**: Browse, copy, delete individual entries, clear all entries, and choose a local retention policy.
+- **Failed recording recovery**: Network/API failures preserve the original recording locally; reveal or permanently delete individual/all recordings in Settings.
+- **Crash-safe private configuration**: The API key, Provider, endpoint, and model are committed atomically as one versioned macOS Keychain item in both development and release builds.
 - **Chinese/English UI**: Switch UI language in Settings
 
 ## Quick Start
@@ -46,12 +48,18 @@ On first launch, you'll be prompted to grant:
 
 ### 4. Configure API Key
 
-Click the menu bar icon → **Settings** → go to the **API** tab:
+When the API configuration is incomplete, OpenTypeless opens the required setup automatically on launch. A hotkey attempt also opens the same setup **before recording starts**, so no audio is recorded without a configured destination and your consent.
+
 - **Provider**: Choose "OpenAI" or "Custom" (for OpenAI-compatible endpoints)
 - **API Key**: Enter your OpenAI API key (`sk-...`)
 - **Model**: Choose a transcription model (default: `gpt-4o-mini-transcribe`)
+- **Data processing**: Review the exact destination, read the bundled privacy policy, accept the disclosure, and continue. A new Provider or Custom endpoint needs its own consent; destinations you already approved are remembered. Clearing the checkbox revokes the current destination immediately, cancels its active network work, and Settings can revoke every saved destination at once. Re-approving a destination does not revive an older recording session.
 
 You can get an OpenAI API key at [platform.openai.com/api-keys](https://platform.openai.com/api-keys).
+
+The app never reads an API key from environment variables. Development builds follow the same App → Keychain path as release builds. An interrupted settings save can retain only the complete old snapshot or the complete new snapshot, never a mixed key/endpoint pair.
+
+If a saved configuration becomes unreadable or comes from a newer app version, the required setup screen fails closed and offers an explicit reset or replacement path instead of sending audio with fallback settings.
 
 ### 5. Start Using
 
@@ -95,15 +103,52 @@ open-typeless uses the `gpt-4o-mini-transcribe` model by default.
 | App | Swift + SwiftUI + AppKit (MenuBarExtra + NSWindow) |
 | Audio | AVAudioRecorder (M4A, 44.1kHz mono) |
 | Transcription | [MacPaw/OpenAI](https://github.com/MacPaw/OpenAI) Swift SDK |
-| Text insertion | Clipboard + simulated Cmd+V |
+| Text insertion | Accessibility direct insertion + guarded temporary clipboard/Cmd+V fallback |
 | Hotkeys | CGEvent tap (toggle mode, modifier-only key support) |
+
+## Privacy and Local Data
+
+OpenTypeless has no ads, tracking, telemetry, or developer-operated analytics. Audio, dictionary hints, and transcript text are sent directly to the provider you select only after you consent. History and failed recordings remain on your Mac and can be deleted in Settings. See the full [Privacy Policy](PRIVACY.md).
+
+## Creating a Notarized DMG
+
+Public distribution requires an Apple **Developer ID Application** certificate and a notary credential stored in Keychain. Sign in to the relevant Apple Developer account in Xcode so automatic signing can create or download the development and Developer ID provisioning profiles required by the API key's Keychain access group. The release script does not upload anything to GitHub.
+
+1. Install one usable Developer ID Application certificate for the team you will pass to `--team-id`.
+2. Store Apple notarization credentials once:
+   ```bash
+   xcrun notarytool store-credentials OpenTypelessNotary \
+     --apple-id "your-apple-id@example.com" \
+     --team-id "YOURTEAMID"
+   ```
+   `notarytool` prompts for the app-specific password and stores the resulting profile in Keychain.
+3. Commit all release changes and create a version tag that points to that commit, then verify prerequisites:
+   ```bash
+   scripts/release-dmg.sh \
+     --version 1.0.0 \
+     --build 1 \
+     --team-id YOURTEAMID \
+     --tag v1.0.0 \
+     --preflight-only
+   ```
+4. Create, notarize, staple, and verify the universal DMG:
+   ```bash
+   scripts/release-dmg.sh \
+     --version 1.0.0 \
+     --build 1 \
+     --team-id YOURTEAMID \
+     --tag v1.0.0
+   ```
+
+The output is written to `dist/OpenTypeless-<version>.dmg` with a SHA-256 checksum. Any signing, notarization, stapling, Gatekeeper, or architecture check failure stops the release.
 
 ## Troubleshooting
 
 | Problem | Solution |
 |---------|----------|
-| Hotkey doesn't work | Check Accessibility permission; after rebuilds, remove the old entry and re-add it in System Settings |
+| Hotkey doesn't work | Keep running the same signed app from `/Applications`; if macOS shows access as disabled, re-enable OpenTypeless in Accessibility settings |
 | "API key not configured" | Enter your key in Settings → API tab |
+| Data processing consent required | Review and accept the disclosure in Settings → API |
 | No audio input | Check System Settings > Sound > Input; make sure a microphone is selected |
 | Text not inserting | Click into a text field before stopping the recording |
 | Can't find the app | Look for the microphone icon in the top-right menu bar |

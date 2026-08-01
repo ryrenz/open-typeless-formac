@@ -3,6 +3,9 @@ import OpenAI
 
 enum TranscriptionError: Error, LocalizedError {
     case noAPIKey
+    case credentialStoreFailure(Error)
+    case invalidEndpoint
+    case dataProcessingConsentRequired
     case noResult
     case partialResult(
         text: String,
@@ -16,6 +19,12 @@ enum TranscriptionError: Error, LocalizedError {
         switch self {
         case .noAPIKey:
             return "API key not configured"
+        case .credentialStoreFailure(let error):
+            return "Unable to read the API key from Keychain: \(error.localizedDescription)"
+        case .invalidEndpoint:
+            return "The selected transcription endpoint is invalid"
+        case .dataProcessingConsentRequired:
+            return "Review and accept the data processing disclosure in Settings → API before transcribing"
         case .noResult:
             return "No transcription result"
         case .partialResult(_, let completed, let total, let underlying):
@@ -37,7 +46,7 @@ enum TranscriptionSegmentError: Error, LocalizedError {
     }
 }
 
-enum APIProvider: String, CaseIterable, Identifiable {
+enum APIProvider: String, CaseIterable, Identifiable, Codable {
     case openAI = "openai"
     case custom = "custom"
 
@@ -64,7 +73,7 @@ protocol TranscriptionTransport {
         prompt: String?
     ) async throws -> String
 
-    func format(_ text: String) async -> String
+    func format(_ text: String) async throws -> String
 }
 
 final class OpenAITranscriptionTransport: TranscriptionTransport {
@@ -92,8 +101,8 @@ final class OpenAITranscriptionTransport: TranscriptionTransport {
         return result.text.trimmingCharacters(in: .whitespacesAndNewlines)
     }
 
-    func format(_ text: String) async -> String {
-        await TranscriptionFormatter.format(text, client: formattingClient)
+    func format(_ text: String) async throws -> String {
+        try await TranscriptionFormatter.format(text, client: formattingClient)
     }
 
     private static func fileType(
@@ -149,6 +158,45 @@ enum TranscriptionFailureClassifier {
     ]
 }
 
+enum AppSetupRequirement: Equatable {
+    case apiKeyMissing
+    case credentialStoreUnavailable(String)
+    case invalidEndpoint
+    case dataProcessingConsentRequired
+
+    init?(error: Error) {
+        switch error {
+        case TranscriptionError.noAPIKey:
+            self = .apiKeyMissing
+        case TranscriptionError.credentialStoreFailure(let underlying):
+            self = .credentialStoreUnavailable(underlying.localizedDescription)
+        case TranscriptionError.invalidEndpoint:
+            self = .invalidEndpoint
+        case TranscriptionError.dataProcessingConsentRequired:
+            self = .dataProcessingConsentRequired
+        default:
+            return nil
+        }
+    }
+}
+
+struct TranscriptionRequestConfiguration {
+    let apiKey: String
+    let model: String
+    let endpoint: DataProcessingEndpoint
+    let consentToken: DataProcessingConsentToken?
+}
+
+enum TranscriptionConfigurationTransaction {
+    private static let lock = NSLock()
+
+    static func perform<T>(_ operation: () throws -> T) rethrows -> T {
+        lock.lock()
+        defer { lock.unlock() }
+        return try operation()
+    }
+}
+
 final class TranscriptionService {
     private static let promptEchoPrefix = "Prefer these spellings when they match the audio:"
     private static let transcriptionTimeout: TimeInterval = 300
@@ -156,46 +204,60 @@ final class TranscriptionService {
     private static let previousContextLimit = 800
 
     private let chunker: any AudioChunking
-    private let apiKeyProvider: () -> String
-    private let transportFactory: ((String) -> any TranscriptionTransport)?
+    private let apiKeyProvider: () throws -> String
+    private let modelProvider: () throws -> String
+    private let dataProcessingEndpointProvider: () throws -> DataProcessingEndpoint
+    private let dataProcessingConsentProvider: ((DataProcessingEndpoint) -> Bool)?
+    private let dataProcessingConsentStore: DataProcessingConsentStore?
+    private let transportFactory: ((String, DataProcessingEndpoint) -> any TranscriptionTransport)?
     private let retryDelaysNanoseconds: [UInt64]
     private let sleep: (UInt64) async throws -> Void
 
-    static var apiKey: String {
-        get { UserDefaults.standard.string(forKey: "apiKey")
-            ?? ProcessInfo.processInfo.environment["AI_BUILDER_TOKEN"]
-            ?? ProcessInfo.processInfo.environment["OPENAI_API_KEY"]
-            ?? "" }
-        set { UserDefaults.standard.set(newValue, forKey: "apiKey") }
-    }
-
     static var provider: APIProvider {
-        get {
-            let raw = UserDefaults.standard.string(forKey: "apiProvider") ?? "openai"
-            return APIProvider(rawValue: raw) ?? .openAI
-        }
-        set { UserDefaults.standard.set(newValue.rawValue, forKey: "apiProvider") }
+        (try? TranscriptionConfigurationStore.shared.loadOrMigrate().provider) ?? .openAI
     }
 
     static var customHost: String {
-        get { UserDefaults.standard.string(forKey: "customHost") ?? "space.ai-builders.com" }
-        set { UserDefaults.standard.set(newValue, forKey: "customHost") }
+        (try? TranscriptionConfigurationStore.shared.loadOrMigrate().customHost)
+            ?? "space.ai-builders.com"
     }
 
     static var customBasePath: String {
-        get { UserDefaults.standard.string(forKey: "customBasePath") ?? "/backend/v1" }
-        set { UserDefaults.standard.set(newValue, forKey: "customBasePath") }
+        (try? TranscriptionConfigurationStore.shared.loadOrMigrate().customBasePath)
+            ?? "/backend/v1"
     }
 
     static var model: String {
-        get { UserDefaults.standard.string(forKey: "transcriptionModel") ?? "gpt-4o-mini-transcribe" }
-        set { UserDefaults.standard.set(newValue, forKey: "transcriptionModel") }
+        (try? TranscriptionConfigurationStore.shared.loadOrMigrate().model)
+            ?? StoredTranscriptionConfiguration.defaultModel
+    }
+
+    convenience init() {
+        self.init(
+            apiKeyProvider: {
+                try TranscriptionConfigurationStore.shared.loadOrMigrate().apiKey ?? ""
+            },
+            modelProvider: {
+                try TranscriptionConfigurationStore.shared.loadOrMigrate().model
+            },
+            dataProcessingEndpointProvider: {
+                try TranscriptionConfigurationStore.shared.loadOrMigrate().endpoint
+            }
+        )
     }
 
     init(
         chunker: any AudioChunking = AudioChunker(),
-        apiKeyProvider: @escaping () -> String = { TranscriptionService.apiKey },
-        transportFactory: ((String) -> any TranscriptionTransport)? = nil,
+        apiKeyProvider: @escaping () throws -> String,
+        modelProvider: @escaping () throws -> String = {
+            StoredTranscriptionConfiguration.defaultModel
+        },
+        dataProcessingEndpointProvider: @escaping () throws -> DataProcessingEndpoint = {
+            DataProcessingEndpoint.current(provider: .openAI)
+        },
+        dataProcessingConsentProvider: ((DataProcessingEndpoint) -> Bool)? = nil,
+        dataProcessingConsentStore: DataProcessingConsentStore? = nil,
+        transportFactory: ((String, DataProcessingEndpoint) -> any TranscriptionTransport)? = nil,
         retryDelaysNanoseconds: [UInt64] = [800_000_000, 2_000_000_000],
         sleep: @escaping (UInt64) async throws -> Void = { nanoseconds in
             try await Task.sleep(nanoseconds: nanoseconds)
@@ -203,6 +265,12 @@ final class TranscriptionService {
     ) {
         self.chunker = chunker
         self.apiKeyProvider = apiKeyProvider
+        self.modelProvider = modelProvider
+        self.dataProcessingEndpointProvider = dataProcessingEndpointProvider
+        self.dataProcessingConsentProvider = dataProcessingConsentProvider
+        self.dataProcessingConsentStore = dataProcessingConsentProvider == nil
+            ? (dataProcessingConsentStore ?? .shared)
+            : nil
         self.transportFactory = transportFactory
         self.retryDelaysNanoseconds = retryDelaysNanoseconds
         self.sleep = sleep
@@ -212,14 +280,63 @@ final class TranscriptionService {
         // No-op for remote API
     }
 
+    func prepareRequestConfiguration() throws -> TranscriptionRequestConfiguration {
+        try TranscriptionConfigurationTransaction.perform {
+            let key: String
+            do {
+                key = try apiKeyProvider()
+            } catch {
+                throw TranscriptionError.credentialStoreFailure(error)
+            }
+            guard !key.isEmpty else { throw TranscriptionError.noAPIKey }
+
+            let endpoint: DataProcessingEndpoint
+            let model: String
+            do {
+                endpoint = try dataProcessingEndpointProvider()
+                model = try modelProvider()
+            } catch {
+                throw TranscriptionError.credentialStoreFailure(error)
+            }
+            guard endpoint.isValid else {
+                throw TranscriptionError.invalidEndpoint
+            }
+            let consentToken: DataProcessingConsentToken?
+            if let dataProcessingConsentStore {
+                guard let token = dataProcessingConsentStore.consentToken(for: endpoint) else {
+                    throw TranscriptionError.dataProcessingConsentRequired
+                }
+                consentToken = token
+            } else {
+                guard dataProcessingConsentProvider?(endpoint) == true else {
+                    throw TranscriptionError.dataProcessingConsentRequired
+                }
+                consentToken = nil
+            }
+            return TranscriptionRequestConfiguration(
+                apiKey: key,
+                model: model,
+                endpoint: endpoint,
+                consentToken: consentToken
+            )
+        }
+    }
+
+    func validatePreparedConfiguration(
+        _ configuration: TranscriptionRequestConfiguration
+    ) throws {
+        try validateConsent(for: configuration)
+    }
+
     func transcribe(
         audioURL: URL,
         prompt: String? = nil,
         silenceRanges: [AudioSilenceRange] = [],
+        configuration preparedConfiguration: TranscriptionRequestConfiguration? = nil,
         onProgress: (@MainActor (Int, Int) -> Void)? = nil
     ) async throws -> String {
-        let key = apiKeyProvider()
-        guard !key.isEmpty else { throw TranscriptionError.noAPIKey }
+        let configuration = try preparedConfiguration ?? prepareRequestConfiguration()
+        try validateConsent(for: configuration)
 
         let batch: AudioChunkBatch
         do {
@@ -232,7 +349,11 @@ final class TranscriptionService {
         }
         defer { batch.cleanUp() }
 
-        let transport = transportFactory?(key) ?? buildTransport(apiKey: key)
+        let transport = transportFactory?(configuration.apiKey, configuration.endpoint)
+            ?? buildTransport(
+                apiKey: configuration.apiKey,
+                endpoint: configuration.endpoint
+            )
         var rawTranscript = ""
         var previousChunkRawText: String?
         var formattedSegments: [String] = []
@@ -251,8 +372,10 @@ final class TranscriptionService {
                 let rawText = try await transcribeWithRetry(
                     audioData: audioData,
                     audioFormat: Self.audioFormat(for: chunk.url),
+                    model: configuration.model,
                     prompt: segmentPrompt,
-                    transport: transport
+                    transport: transport,
+                    configuration: configuration
                 )
                 let trimmed = rawText.trimmingCharacters(in: .whitespacesAndNewlines)
 
@@ -279,9 +402,23 @@ final class TranscriptionService {
                 rawTranscript = rawTranscript.isEmpty
                     ? deduplicated
                     : "\(rawTranscript) \(deduplicated)"
-                formattedSegments.append(await transport.format(deduplicated))
+                do {
+                    let formatted = try await performAuthorizedRequest(
+                        configuration: configuration
+                    ) {
+                        try await transport.format(deduplicated)
+                    }
+                    formattedSegments.append(formatted)
+                } catch {
+                    formattedSegments.append(deduplicated)
+                    throw error
+                }
             } catch {
                 if error is CancellationError {
+                    throw error
+                }
+                if case TranscriptionError.dataProcessingConsentRequired = error,
+                   formattedSegments.isEmpty {
                     throw error
                 }
                 if !formattedSegments.isEmpty {
@@ -345,20 +482,26 @@ final class TranscriptionService {
     private func transcribeWithRetry(
         audioData: Data,
         audioFormat: TranscriptionAudioFormat,
+        model: String,
         prompt: String?,
-        transport: any TranscriptionTransport
+        transport: any TranscriptionTransport,
+        configuration: TranscriptionRequestConfiguration
     ) async throws -> String {
         var lastError: Error?
 
         for attempt in 0...retryDelaysNanoseconds.count {
             try Task.checkCancellation()
             do {
-                return try await transport.transcribe(
-                    audioData: audioData,
-                    audioFormat: audioFormat,
-                    model: Self.model,
-                    prompt: prompt
-                )
+                return try await performAuthorizedRequest(
+                    configuration: configuration
+                ) {
+                    try await transport.transcribe(
+                        audioData: audioData,
+                        audioFormat: audioFormat,
+                        model: model,
+                        prompt: prompt
+                    )
+                }
             } catch {
                 lastError = error
                 guard attempt < retryDelaysNanoseconds.count,
@@ -373,22 +516,72 @@ final class TranscriptionService {
         throw lastError ?? TranscriptionError.noResult
     }
 
-    private func buildTransport(apiKey: String) -> any TranscriptionTransport {
+    private func validateConsent(
+        for configuration: TranscriptionRequestConfiguration
+    ) throws {
+        if let dataProcessingConsentStore {
+            guard let token = configuration.consentToken,
+                  dataProcessingConsentStore.isConsentValid(
+                    token,
+                    for: configuration.endpoint
+                  )
+            else {
+                throw TranscriptionError.dataProcessingConsentRequired
+            }
+            return
+        }
+        guard dataProcessingConsentProvider?(configuration.endpoint) == true else {
+            throw TranscriptionError.dataProcessingConsentRequired
+        }
+    }
+
+    private func performAuthorizedRequest<T>(
+        configuration: TranscriptionRequestConfiguration,
+        operation: @escaping () async throws -> T
+    ) async throws -> T {
+        if let dataProcessingConsentStore {
+            guard let token = configuration.consentToken else {
+                throw TranscriptionError.dataProcessingConsentRequired
+            }
+            do {
+                return try await dataProcessingConsentStore.performAuthorizedRequest(
+                    token: token,
+                    endpoint: configuration.endpoint,
+                    operation: operation
+                )
+            } catch DataProcessingConsentAuthorizationError.revoked {
+                throw TranscriptionError.dataProcessingConsentRequired
+            }
+        }
+        try validateConsent(for: configuration)
+        return try await operation()
+    }
+
+    private func buildTransport(
+        apiKey: String,
+        endpoint: DataProcessingEndpoint
+    ) -> any TranscriptionTransport {
         OpenAITranscriptionTransport(
             transcriptionClient: buildClient(
                 apiKey: apiKey,
+                endpoint: endpoint,
                 timeoutInterval: Self.transcriptionTimeout
             ),
             formattingClient: buildClient(
                 apiKey: apiKey,
+                endpoint: endpoint,
                 timeoutInterval: Self.formattingTimeout
             )
         )
     }
 
-    private func buildClient(apiKey: String, timeoutInterval: TimeInterval) -> OpenAI {
+    private func buildClient(
+        apiKey: String,
+        endpoint: DataProcessingEndpoint,
+        timeoutInterval: TimeInterval
+    ) -> OpenAI {
         let config: OpenAI.Configuration
-        switch Self.provider {
+        switch endpoint.provider {
         case .openAI:
             config = OpenAI.Configuration(
                 token: apiKey,
@@ -397,10 +590,10 @@ final class TranscriptionService {
         case .custom:
             config = OpenAI.Configuration(
                 token: apiKey,
-                host: Self.customHost,
+                host: endpoint.host,
                 port: 443,
                 scheme: "https",
-                basePath: Self.customBasePath,
+                basePath: endpoint.basePath,
                 timeoutInterval: timeoutInterval
             )
         }
