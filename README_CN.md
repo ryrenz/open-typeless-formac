@@ -24,19 +24,15 @@
 
 ## 快速开始
 
-### 1. 编译运行
+### 1. 下载并安装
 
-1. 从 [App Store](https://apps.apple.com/app/xcode/id497799835) 下载 **Xcode**
-2. 克隆本仓库：
-   ```bash
-   git clone https://github.com/ryrenz/open-typeless-formac.git
-   ```
-3. 用 Xcode 打开 `OpenTypeless.xcodeproj`
-4. 按 **Cmd+R** 编译运行
+1. 从 [GitHub Releases](https://github.com/ryrenz/open-typeless-formac/releases/latest) 下载最新的已签名、公证 DMG
+2. 打开 DMG，将 `OpenTypeless.app` 拖到 `/Applications`
+3. 从 `/Applications` 启动 OpenTypeless
 
 ### 2. 找到应用
 
-编译运行后，在屏幕**右上角菜单栏**找到 **麦克风图标（🎙）**——这就是 open-typeless。点击它可以进入设置。
+启动应用后，在屏幕**右上角菜单栏**找到 **麦克风图标（🎙）**——这就是 open-typeless。点击它可以进入设置。
 
 ### 3. 授权权限
 
@@ -112,7 +108,7 @@ OpenTypeless 不包含广告、追踪、遥测或开发者分析。只有在你�
 
 ## 生成已公证的 DMG
 
-公开分发需要 Apple **Developer ID Application** 证书，以及保存在 Keychain 中的 notarization 凭证。请先在 Xcode 登录对应的 Apple Developer 账号，自动签名会创建或下载 API Key 的 Keychain access group 所需的开发与 Developer ID provisioning profile。发布脚本不会自动上传 GitHub。
+公开分发需要 Apple **Developer ID Application** 证书，以及保存在 Keychain 中的 notarization 凭证。发布脚本不会自动上传 GitHub。
 
 1. 在登录 Keychain 中安装一张属于 `--team-id` 所指定团队的可用 Developer ID Application 证书。
 2. 一次性保存 Apple notarization 凭证：

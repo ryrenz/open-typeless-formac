@@ -24,19 +24,15 @@ Inspired by [Typeless](https://www.typeless.com/).
 
 ## Quick Start
 
-### 1. Build & Run
+### 1. Download and Install
 
-1. Download **Xcode** from the [App Store](https://apps.apple.com/app/xcode/id497799835)
-2. Clone this repo:
-   ```bash
-   git clone https://github.com/ryrenz/open-typeless-formac.git
-   ```
-3. Open `OpenTypeless.xcodeproj` in Xcode
-4. Press **Cmd+R** to build and run
+1. Download the latest signed and notarized DMG from [GitHub Releases](https://github.com/ryrenz/open-typeless-formac/releases/latest)
+2. Open the DMG and drag `OpenTypeless.app` to `/Applications`
+3. Launch OpenTypeless from `/Applications`
 
 ### 2. Find the App
 
-After build & run, look for the **microphone icon (🎙) in the top-right menu bar** — that's open-typeless. Click it to access Settings.
+After launching the app, look for the **microphone icon (🎙) in the top-right menu bar** — that's open-typeless. Click it to access Settings.
 
 ### 3. Grant Permissions
 
@@ -112,7 +108,7 @@ OpenTypeless has no ads, tracking, telemetry, or developer-operated analytics. A
 
 ## Creating a Notarized DMG
 
-Public distribution requires an Apple **Developer ID Application** certificate and a notary credential stored in Keychain. Sign in to the relevant Apple Developer account in Xcode so automatic signing can create or download the development and Developer ID provisioning profiles required by the API key's Keychain access group. The release script does not upload anything to GitHub.
+Public distribution requires an Apple **Developer ID Application** certificate and a notary credential stored in Keychain. The release script does not upload anything to GitHub.
 
 1. Install one usable Developer ID Application certificate for the team you will pass to `--team-id`.
 2. Store Apple notarization credentials once:
