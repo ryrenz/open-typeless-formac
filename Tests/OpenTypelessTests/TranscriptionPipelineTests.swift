@@ -354,6 +354,32 @@ final class TranscriptionPipelineTests: XCTestCase {
         XCTAssertFalse(prompt?.hasSuffix(String(repeating: "a", count: 801)) == true)
     }
 
+    func testProviderPromptPoliciesMatchProviderCapabilities() {
+        let previous = String(repeating: "a", count: 900)
+
+        let groqPrompt = TranscriptionService.makeSegmentPrompt(
+            basePrompt: "Names",
+            previousTranscript: previous,
+            policy: .limited(maxCharacters: 200)
+        )
+        XCTAssertEqual(groqPrompt?.count, 200)
+        XCTAssertTrue(groqPrompt?.hasPrefix("Names\n") == true)
+
+        let longBasePrompt = TranscriptionService.makeSegmentPrompt(
+            basePrompt: String(repeating: "b", count: 300),
+            previousTranscript: "",
+            policy: .limited(maxCharacters: 200)
+        )
+        XCTAssertEqual(longBasePrompt?.count, 200)
+
+        let mistralPrompt = TranscriptionService.makeSegmentPrompt(
+            basePrompt: "Names",
+            previousTranscript: previous,
+            policy: .unsupported
+        )
+        XCTAssertNil(mistralPrompt)
+    }
+
     func testFailureClassifierRecognizesRetryableErrors() {
         XCTAssertTrue(
             TranscriptionFailureClassifier.isTransient(URLError(.networkConnectionLost))

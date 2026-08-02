@@ -16,17 +16,20 @@ enum TranscriptionFormatter {
 
     private static let minFormattingLength = 20
 
-    static func format(_ text: String, client: OpenAI) async throws -> String {
+    static func format(
+        _ text: String,
+        client: OpenAI,
+        model: String = StoredTranscriptionConfiguration.defaultFormattingModel,
+        tokenLimitPolicy: FormattingTokenLimitPolicy = .maxCompletionTokens
+    ) async throws -> String {
         guard text.count >= minFormattingLength else { return text }
 
         let estimatedOutputTokens = min(text.count * 2 + 200, 4096)
-        let query = ChatQuery(
-            messages: [
-                .system(.init(content: .textContent(systemPrompt))),
-                .user(.init(content: .string(text)))
-            ],
-            model: .gpt4_o_mini,
-            maxCompletionTokens: estimatedOutputTokens
+        let query = makeQuery(
+            text: text,
+            model: model,
+            estimatedOutputTokens: estimatedOutputTokens,
+            tokenLimitPolicy: tokenLimitPolicy
         )
         do {
             let result = try await client.chats(query: query)
@@ -43,6 +46,28 @@ enum TranscriptionFormatter {
             // Silently fall back to unformatted text
         }
         return text
+    }
+
+    static func makeQuery(
+        text: String,
+        model: String,
+        estimatedOutputTokens: Int,
+        tokenLimitPolicy: FormattingTokenLimitPolicy = .maxCompletionTokens
+    ) -> ChatQuery {
+        var query = ChatQuery(
+            messages: [
+                .system(.init(content: .textContent(systemPrompt))),
+                .user(.init(content: .string(text)))
+            ],
+            model: .init(model),
+            maxCompletionTokens: tokenLimitPolicy == .maxCompletionTokens
+                ? estimatedOutputTokens
+                : nil
+        )
+        if tokenLimitPolicy == .maxTokens {
+            query.maxTokens = estimatedOutputTokens
+        }
+        return query
     }
 
     static func resolvedText(

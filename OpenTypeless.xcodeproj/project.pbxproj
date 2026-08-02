@@ -12,6 +12,7 @@
 		12B05ECA1968F596EDB83F0C /* PendingTranscriptionStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3F39957650199414AABB5A64 /* PendingTranscriptionStore.swift */; };
 		12CB6BBB46B122F2A4C3466A /* TranscriptionTextMergerTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1ADF9F231C77111673252E5B /* TranscriptionTextMergerTests.swift */; };
 		15F70909E017456ED34A1C38 /* TranscriptionPipelineTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 70C3170B8AC66F7480890CB7 /* TranscriptionPipelineTests.swift */; };
+		19CF3E3E37B83C1148FBFE7E /* ProviderConfigurationTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4FECF7D66226B854207B20B0 /* ProviderConfigurationTests.swift */; };
 		1EB4A09EEB065D74C39AF6B6 /* MainWindowView.swift in Sources */ = {isa = PBXBuildFile; fileRef = ABF05C3D3B209C89B1E47474 /* MainWindowView.swift */; };
 		23C9BE378271EDE9D5777E73 /* DictationSessionCoordinator.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6BD7AD980E1C1D73673DDC9D /* DictationSessionCoordinator.swift */; };
 		25BB5D470A6903D0352B9A9F /* PermissionManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5C5E0B7101FE0F65E18809B0 /* PermissionManager.swift */; };
@@ -62,6 +63,7 @@
 		EFA1B6E168E4E41E296AF499 /* PendingTranscriptionsTabView.swift in Sources */ = {isa = PBXBuildFile; fileRef = E33D445EDC38BFF48255050A /* PendingTranscriptionsTabView.swift */; };
 		F020B687087957DDF840D7B0 /* TranscriptionService.swift in Sources */ = {isa = PBXBuildFile; fileRef = FF248BD2A796C8D341245E2D /* TranscriptionService.swift */; };
 		F6D375D177817127750BE326 /* PRIVACY.md in Resources */ = {isa = PBXBuildFile; fileRef = C1DF505EA8C73121C70C6485 /* PRIVACY.md */; };
+		FAE5387EADC7D6DA1B618425 /* ProviderConfiguration.swift in Sources */ = {isa = PBXBuildFile; fileRef = 65DA5684B9A28344D1FFF6A4 /* ProviderConfiguration.swift */; };
 		FB0374BC4E42085DFCA75A72 /* InsertionStrategyTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 796F4D210BFE2C15DDE783BD /* InsertionStrategyTests.swift */; };
 		FB9484E8B6B2495820EAA835 /* AudioChunkerTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = AABDED1B73880722AEB219DD /* AudioChunkerTests.swift */; };
 		FCA786E2893FCFEE8AC79BA7 /* DictionaryStoreTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9D12F1A71F9BC6DA89B895E5 /* DictionaryStoreTests.swift */; };
@@ -97,6 +99,7 @@
 		3F39957650199414AABB5A64 /* PendingTranscriptionStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PendingTranscriptionStore.swift; sourceTree = "<group>"; };
 		421E15634FC1D9BC346350AC /* AudioRecorder.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AudioRecorder.swift; sourceTree = "<group>"; };
 		4C015DE62387B71D11987259 /* DictionaryHallucinationFilter.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DictionaryHallucinationFilter.swift; sourceTree = "<group>"; };
+		4FECF7D66226B854207B20B0 /* ProviderConfigurationTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProviderConfigurationTests.swift; sourceTree = "<group>"; };
 		52862BA91FB4BCD7E1BD2173 /* HotkeyManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HotkeyManager.swift; sourceTree = "<group>"; };
 		56FA22F9D059A02E440B2306 /* HistoryStoreTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HistoryStoreTests.swift; sourceTree = "<group>"; };
 		5796BD42C96BBC050ECA210A /* App.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = App.swift; sourceTree = "<group>"; };
@@ -105,6 +108,7 @@
 		618BA625A794FEC555A75A58 /* APIKeyStoreTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = APIKeyStoreTests.swift; sourceTree = "<group>"; };
 		6199BC6AEA3B5EE60086ECF3 /* HistoryTabView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HistoryTabView.swift; sourceTree = "<group>"; };
 		62DDFAF0114BF7FD01DB87E3 /* AccessibilityHelper.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AccessibilityHelper.swift; sourceTree = "<group>"; };
+		65DA5684B9A28344D1FFF6A4 /* ProviderConfiguration.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProviderConfiguration.swift; sourceTree = "<group>"; };
 		66627EC312CA0830320BF8C3 /* HistoryStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HistoryStore.swift; sourceTree = "<group>"; };
 		6A8F4EC1F9358BA1BD30539E /* AudioRecorderTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AudioRecorderTests.swift; sourceTree = "<group>"; };
 		6BD7AD980E1C1D73673DDC9D /* DictationSessionCoordinator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DictationSessionCoordinator.swift; sourceTree = "<group>"; };
@@ -211,6 +215,7 @@
 				CB4A40AC3D566E5EB409079E /* APIKeyStore.swift */,
 				94057DAE83F7FF767974A68A /* DataProcessingConsentStore.swift */,
 				3F39957650199414AABB5A64 /* PendingTranscriptionStore.swift */,
+				65DA5684B9A28344D1FFF6A4 /* ProviderConfiguration.swift */,
 				0D7CC55E59192EE2F15FC51F /* TranscriptionFormatter.swift */,
 				FF248BD2A796C8D341245E2D /* TranscriptionService.swift */,
 				06BCF0C14C5855880135F164 /* TranscriptionTextMerger.swift */,
@@ -278,6 +283,7 @@
 				796F4D210BFE2C15DDE783BD /* InsertionStrategyTests.swift */,
 				EC120C1058AA233E1247BCE0 /* PendingTranscriptionStoreTests.swift */,
 				8460EDB49843663CEED7C639 /* PrivacyPolicyDocumentTests.swift */,
+				4FECF7D66226B854207B20B0 /* ProviderConfigurationTests.swift */,
 				C28D37F3E63AFF26A9FDBD8E /* TranscriptionFormatterTests.swift */,
 				70C3170B8AC66F7480890CB7 /* TranscriptionPipelineTests.swift */,
 				8D43E926297E99334837F80E /* TranscriptionServiceTests.swift */,
@@ -461,6 +467,7 @@
 				25BB5D470A6903D0352B9A9F /* PermissionManager.swift in Sources */,
 				A96B0351974B3257E6797B59 /* PrivacyTabView.swift in Sources */,
 				C66AD81E2764765174F65B24 /* ProgressOverlay.swift in Sources */,
+				FAE5387EADC7D6DA1B618425 /* ProviderConfiguration.swift in Sources */,
 				6888C94349BA93E537CA5F0F /* ResultPopup.swift in Sources */,
 				CBC03266564DC19E434EB661 /* ShortcutRecorderView.swift in Sources */,
 				2D2D6640D3A2D43C0EE3EF87 /* TranscriptionFormatter.swift in Sources */,
@@ -490,6 +497,7 @@
 				FB0374BC4E42085DFCA75A72 /* InsertionStrategyTests.swift in Sources */,
 				7072404997E80B3249257F23 /* PendingTranscriptionStoreTests.swift in Sources */,
 				0875839407B43EF335F7DA68 /* PrivacyPolicyDocumentTests.swift in Sources */,
+				19CF3E3E37B83C1148FBFE7E /* ProviderConfigurationTests.swift in Sources */,
 				098EAB8D6E74332589CCFE44 /* TranscriptionFormatterTests.swift in Sources */,
 				15F70909E017456ED34A1C38 /* TranscriptionPipelineTests.swift in Sources */,
 				B254BF91918A26ADEEB2EFA1 /* TranscriptionServiceTests.swift in Sources */,
@@ -517,14 +525,14 @@
 				CODE_SIGN_IDENTITY = "Apple Development";
 				CODE_SIGN_STYLE = Automatic;
 				COMBINE_HIDPI_IMAGES = YES;
-				CURRENT_PROJECT_VERSION = 1;
+				CURRENT_PROJECT_VERSION = 2;
 				ENABLE_HARDENED_RUNTIME = YES;
 				INFOPLIST_FILE = Sources/OpenTypeless/Info.plist;
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
 					"@executable_path/../Frameworks",
 				);
-				MARKETING_VERSION = 1.0.0;
+				MARKETING_VERSION = 1.0.1;
 				PRODUCT_BUNDLE_IDENTIFIER = "com.scinttt.open-typeless";
 				PRODUCT_NAME = OpenTypeless;
 				SDKROOT = macosx;
@@ -619,14 +627,14 @@
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				CODE_SIGN_ENTITLEMENTS = Sources/OpenTypeless/OpenTypeless.entitlements;
 				COMBINE_HIDPI_IMAGES = YES;
-				CURRENT_PROJECT_VERSION = 1;
+				CURRENT_PROJECT_VERSION = 2;
 				ENABLE_HARDENED_RUNTIME = YES;
 				INFOPLIST_FILE = Sources/OpenTypeless/Info.plist;
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
 					"@executable_path/../Frameworks",
 				);
-				MARKETING_VERSION = 1.0.0;
+				MARKETING_VERSION = 1.0.1;
 				PRODUCT_BUNDLE_IDENTIFIER = "com.scinttt.open-typeless";
 				PRODUCT_NAME = OpenTypeless;
 				SDKROOT = macosx;

@@ -65,8 +65,8 @@ struct PrivacyTabView: View {
     private var dataFlowTitle: String { l.lang == .zh ? "网络数据" : "Network data" }
     private var dataFlowText: String {
         l.lang == .zh
-            ? "只有在你同意后，录音、词典提示和转写文本才会直接发送到你选择的 OpenAI 或自定义兼容端点。"
-            : "Only after you consent, audio, dictionary hints, and transcript text are sent directly to the OpenAI or compatible endpoint you select."
+            ? "只有在你同意后，录音、词典提示和转写文本才会直接发送到你选择的 OpenAI、Groq、Mistral 或自定义兼容端点。"
+            : "Only after you consent, audio, dictionary hints, and transcript text are sent directly to the OpenAI, Groq, Mistral, or compatible endpoint you select."
     }
     private var localDataTitle: String { l.lang == .zh ? "本地数据" : "Local data" }
     private var localDataText: String {

@@ -9,6 +9,7 @@ protocol APIKeyPersistence {
 
 enum APIKeyStoreError: LocalizedError, Equatable {
     case emptyKey
+    case keyRequiredForDestinationChange
     case invalidEncoding
     case keychain(OSStatus)
 
@@ -16,6 +17,8 @@ enum APIKeyStoreError: LocalizedError, Equatable {
         switch self {
         case .emptyKey:
             return "The API key cannot be empty."
+        case .keyRequiredForDestinationChange:
+            return "Enter a new API key when changing provider or endpoint."
         case .invalidEncoding:
             return "The API key could not be encoded."
         case let .keychain(status):
@@ -252,6 +255,7 @@ final class APIKeyStore: @unchecked Sendable {
 struct StoredTranscriptionConfiguration: Codable, Equatable, Sendable {
     static let currentVersion = 1
     static let defaultModel = "gpt-4o-mini-transcribe"
+    static let defaultFormattingModel = "gpt-4o-mini"
     static let defaultCustomHost = "space.ai-builders.com"
     static let defaultCustomBasePath = "/backend/v1"
 

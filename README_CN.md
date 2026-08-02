@@ -4,6 +4,8 @@
 
 一个开源的 macOS 菜单栏语音转文字工具。按下快捷键开始录音，再按一下停止——语音自动转写并插入到当前输入框中。
 
+当前公开版本：**v1.0.1**（universal、已签名并完成 notarization）。
+
 灵感来源于 [Typeless](https://www.typeless.com/)。
 
 ## 功能
@@ -13,10 +15,10 @@
 - **弹窗兜底**：如果没有聚焦的输入框，弹出浮窗显示结果并提供复制按钮
 - **进度浮窗**：屏幕底部居中显示录音/转写状态和实时音量
 - **双击取消**：快速按两下快捷键取消录音
-- **多模型可选**：支持 gpt-4o-mini-transcribe、gpt-4o-transcribe、whisper-1
-- **自定义 API**：兼容任何 OpenAI 兼容端点（Groq、Together AI 等）
+- **多 Provider 与模型**：内置 OpenAI、Groq、Mistral 预设，也支持自定义 OpenAI 兼容端点；Groq 音频请求兼容不接受 SDK 默认 `stream=false` 的端点
+- **多语言转写**：Groq `whisper-large-v3-turbo` / `whisper-large-v3`，Mistral `voxtral-mini-latest`，以及 OpenAI 转写模型
 - **智能排版**：转写结果自动后处理——中文或中英混合内容使用中文标点，纯英文使用英文标点；中文与英文/数字之间自动加空格（pangu 风格）；自然段落分行；口述的列举内容转换为编号列表（1. 2. 3.）。
-- **词汇表**：添加容易被误识别的专有名词（产品名、人名、术语等），作为转写提示发给模型，帮助它优先使用正确拼写；并过滤掉模型在静默时对词汇表词的幻听输出。
+- **词汇表**：添加容易被误识别的专有名词（产品名、人名、术语等），在支持提示词的 Provider 上帮助模型优先使用正确拼写；并过滤掉模型在静默时对词汇表词的幻听输出。
 - **历史记录**：可浏览、复制、单条删除、全部清空，并可选择本地保留策略。
 - **失败录音恢复**：网络/API 失败时保留原始录音，可在设置中通过 Finder 查看、单条删除或全部删除。
 - **崩溃安全的私密配置**：开发版与发布版都把 API Key、Provider、endpoint 和模型作为一个版本化配置，原子保存到 macOS Keychain。
@@ -46,12 +48,12 @@
 
 API 配置不完整时，OpenTypeless 会在启动后直接打开必需设置。如果用户先按了快捷键，也会在**开始录音前**打开同一个设置流程；未配置接收方和完成同意之前不会录音。
 
-- **Provider**：选择 "OpenAI" 或 "Custom"（用于 OpenAI 兼容端点）
-- **API Key**：输入你的 OpenAI API key（`sk-...`）
-- **Model**：选择转写模型（默认：`gpt-4o-mini-transcribe`）
+- **Provider**：选择 OpenAI、Groq、Mistral，或 Custom（用于其他 OpenAI 兼容端点）
+- **API Key**：输入所选 Provider 的 API Key；Key 只保存到 macOS Keychain
+- **Model**：内置 Provider 会显示可用模型；Custom 可填写服务商提供的模型 ID
 - **数据处理**：核对确切发送地址、阅读 App 内置隐私政策、勾选同意并继续。新的 Provider 或 Custom endpoint 需要单独确认；已经确认过的目的地会被记住。取消勾选会立即撤销当前目的地的同意并取消对应的活动网络任务，设置页也可以一次撤销全部已保存目的地；重新同意不会让旧录音会话恢复发送。
 
-OpenAI API key 获取地址：[platform.openai.com/api-keys](https://platform.openai.com/api-keys)
+API Key 获取地址：[OpenAI](https://platform.openai.com/api-keys)、[Groq](https://console.groq.com/keys)、[Mistral](https://console.mistral.ai/api-keys)
 
 App 不读取环境变量中的 API Key。开发测试与普通用户使用完全相同的 App → Keychain 路径。设置保存即使中途被强退，也只会保留完整旧快照或完整新快照，不会出现新 Key 与旧 endpoint 混用。
 
@@ -75,7 +77,7 @@ App 不读取环境变量中的 API Key。开发测试与普通用户使用完�
 
 ## 费用估算
 
-默认使用 `gpt-4o-mini-transcribe` 模型。
+应用内置 OpenAI、Groq、Mistral 三类转写模型。新用户可直接选择 Groq 作为低成本选项；已有配置不会被发布升级自动覆盖。
 
 | 使用量 | 费用（美元） | 费用（人民币） |
 |--------|-------------|---------------|
@@ -88,9 +90,14 @@ App 不读取环境变量中的 API Key。开发测试与普通用户使用完�
 
 | 模型 | 费用/分钟 | 准确度 |
 |------|----------|--------|
-| gpt-4o-mini-transcribe | $0.003 | 很好（默认） |
+| gpt-4o-mini-transcribe | $0.003 | 很好（OpenAI 默认） |
 | gpt-4o-transcribe | $0.006 | 最好 |
 | whisper-1 | $0.006 | 好 |
+| Groq whisper-large-v3-turbo | 约 $0.0007 | 很快，多语言 |
+| Groq whisper-large-v3 | 约 $0.0019 | 多语言，准确度优先 |
+| Mistral voxtral-mini-latest | $0.003 | 多语言 |
+
+Groq Turbo 约为 `gpt-4o-mini-transcribe` 的 22%，每小时约 $0.04；Mistral 与 OpenAI mini 目前都是约 $0.003/分钟。价格会变化，请以 [Groq 官方模型价格](https://console.groq.com/docs/models)、[Mistral 官方 API 定价](https://mistral.ai/pricing/api/) 和 [OpenAI 官方 API 定价](https://platform.openai.com/pricing) 为准。Groq 每次请求最低按 10 秒计费。
 
 ## 技术栈
 
@@ -98,13 +105,35 @@ App 不读取环境变量中的 API Key。开发测试与普通用户使用完�
 |------|------|
 | 应用框架 | Swift + SwiftUI + AppKit（MenuBarExtra + NSWindow） |
 | 音频录制 | AVAudioRecorder（M4A, 44.1kHz 单声道） |
-| 语音转写 | [MacPaw/OpenAI](https://github.com/MacPaw/OpenAI) Swift SDK |
+| 语音转写 | [MacPaw/OpenAI](https://github.com/MacPaw/OpenAI) Swift SDK + Provider 兼容 middleware |
 | 文字插入 | Accessibility 直接写入 + 带前台校验的临时剪贴板/Cmd+V 兜底 |
 | 全局快捷键 | CGEvent tap（切换模式，支持单修饰键） |
 
 ## 隐私与本地数据
 
 OpenTypeless 不包含广告、追踪、遥测或开发者分析。只有在你同意后，录音、词典提示和转写文本才会直接发送到所选服务商。历史记录和失败录音只保存在本机，并可在设置中删除。完整说明见[隐私政策](PRIVACY.md)。
+
+## 本地开发构建与 DMG 测试
+
+不要把每次 Xcode 构建都手动复制到 `/Applications`。Xcode 的增量构建统一保存在 `.build/DerivedData`；本地安装脚本只维护一个标准路径，并在校验失败时自动恢复旧 App：
+
+```bash
+scripts/install-local.sh
+```
+
+如果只想构建不启动，或要本地测试 Release 构建：
+
+```bash
+scripts/install-local.sh --configuration Release --no-launch
+```
+
+生成一个用于本地测试、未 notarize 的 DMG：
+
+```bash
+scripts/build-dmg.sh
+```
+
+产物是 `dist/local/OpenTypeless-<version>.dmg` 和 SHA-256 校验文件。本地产物与正式 `dist/` 发布目录分开保存，已有产物不会被隐式覆盖，只有显式添加 `--force` 才会替换。这两个脚本不会上传 GitHub；公开分发继续使用 `scripts/release-dmg.sh` 生成 universal notarized DMG。
 
 ## 生成已公证的 DMG
 
@@ -121,19 +150,19 @@ OpenTypeless 不包含广告、追踪、遥测或开发者分析。只有在你�
 3. 提交全部发布变更并为该 commit 创建版本 tag 后，先检查环境：
    ```bash
    scripts/release-dmg.sh \
-     --version 1.0.0 \
-     --build 1 \
+     --version 1.0.1 \
+     --build 2 \
      --team-id YOURTEAMID \
-     --tag v1.0.0 \
+     --tag v1.0.1 \
      --preflight-only
    ```
 4. 生成、notarize、staple 并验证 universal DMG：
    ```bash
    scripts/release-dmg.sh \
-     --version 1.0.0 \
-     --build 1 \
+     --version 1.0.1 \
+     --build 2 \
      --team-id YOURTEAMID \
-     --tag v1.0.0
+     --tag v1.0.1
    ```
 
 产物位于 `dist/OpenTypeless-<version>.dmg`，同时生成 SHA-256 校验文件。签名、公证、staple、Gatekeeper 或架构检查任何一步失败，脚本都会停止。

@@ -14,8 +14,14 @@ struct DataProcessingEndpoint: Equatable {
         case .openAI:
             return DataProcessingEndpoint(
                 provider: .openAI,
-                host: "api.openai.com",
-                basePath: "/v1"
+                host: provider.providerPreset.defaultHost,
+                basePath: provider.providerPreset.defaultBasePath
+            )
+        case .groq, .mistral:
+            return DataProcessingEndpoint(
+                provider: provider,
+                host: provider.providerPreset.defaultHost,
+                basePath: provider.providerPreset.defaultBasePath
             )
         case .custom:
             return DataProcessingEndpoint(
@@ -35,7 +41,7 @@ struct DataProcessingEndpoint: Equatable {
     }
 
     var isValid: Bool {
-        guard provider == .custom else { return true }
+        guard provider.providerPreset.allowsCustomEndpoint else { return true }
         guard !host.isEmpty,
               !basePath.contains(where: { $0.isWhitespace }),
               !basePath.contains("?"),

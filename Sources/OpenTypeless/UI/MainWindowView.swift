@@ -72,6 +72,11 @@ struct L {
             ? "必须是 OpenAI 兼容的 API 端点"
             : "Must be an OpenAI-compatible API endpoint"
     }
+    var customModelHint: String {
+        lang == .zh
+            ? "填写该服务商提供的模型 ID"
+            : "Enter the model ID provided by the service"
+    }
     var apiKeySaved: String {
         lang == .zh
             ? "API Key 已安全保存在 macOS Keychain。输入新 Key 可替换。"
@@ -439,7 +444,7 @@ struct APITabView: View {
     @State private var provider: APIProvider = .openAI
     @State private var customHost: String = ""
     @State private var customBasePath: String = ""
-    @State private var selectedModel: String = "gpt-4o-mini-transcribe"
+    @State private var selectedModel: String = StoredTranscriptionConfiguration.defaultModel
     @State private var saveStatus: String?
     @State private var saveFailed = false
     @State private var hasStoredKey = false
@@ -470,7 +475,14 @@ struct APITabView: View {
                         Picker(l.provider, selection: Binding(
                             get: { provider },
                             set: {
+                                let didChangeProvider = provider != $0
                                 provider = $0
+                                if didChangeProvider {
+                                    clearStoredKeyForDestinationChange()
+                                }
+                                if !$0.providerPreset.allowsCustomModel {
+                                    selectedModel = $0.providerPreset.defaultModel
+                                }
                                 resetConsentForEditedEndpoint()
                             }
                         )) {
@@ -478,13 +490,14 @@ struct APITabView: View {
                                 Text(p.displayName).tag(p)
                             }
                         }
-                        .pickerStyle(.segmented)
+                        .pickerStyle(.menu)
 
                         if provider == .custom {
                             TextField("Host (e.g. api.example.com)", text: Binding(
                                 get: { customHost },
                                 set: {
                                     customHost = $0
+                                    clearStoredKeyForDestinationChange()
                                     resetConsentForEditedEndpoint()
                                 }
                             ))
@@ -493,6 +506,7 @@ struct APITabView: View {
                                 get: { customBasePath },
                                 set: {
                                     customBasePath = $0
+                                    clearStoredKeyForDestinationChange()
                                     resetConsentForEditedEndpoint()
                                 }
                             ))
@@ -533,12 +547,22 @@ struct APITabView: View {
                 }
 
                 GroupBox(l.model) {
-                    Picker(l.model, selection: $selectedModel) {
-                        Text("gpt-4o-mini-transcribe ($0.003/min)").tag("gpt-4o-mini-transcribe")
-                        Text("gpt-4o-transcribe ($0.006/min)").tag("gpt-4o-transcribe")
-                        Text("whisper-1 ($0.006/min)").tag("whisper-1")
+                    VStack(alignment: .leading, spacing: 6) {
+                        if provider.providerPreset.allowsCustomModel {
+                            TextField("Model ID", text: $selectedModel)
+                                .textFieldStyle(.roundedBorder)
+                            Text(l.customModelHint)
+                                .font(.caption2)
+                                .foregroundStyle(.secondary)
+                        } else {
+                            Picker(l.model, selection: $selectedModel) {
+                                ForEach(provider.providerPreset.modelOptions) { option in
+                                    Text(option.displayName).tag(option.id)
+                                }
+                            }
+                            .pickerStyle(.menu)
+                        }
                     }
-                    .pickerStyle(.menu)
                     .padding(8)
                 }
 
@@ -652,7 +676,9 @@ struct APITabView: View {
                 provider = configuration.provider
                 customHost = configuration.customHost
                 customBasePath = configuration.customBasePath
-                selectedModel = configuration.model
+                selectedModel = configuration.provider.providerPreset.normalizedModel(
+                    configuration.model
+                )
                 hasStoredKey = configuration.apiKey != nil
                 configurationRecoveryRequired = false
                 hasDataProcessingConsent = DataProcessingConsentStore.shared.hasConsent(
@@ -686,8 +712,18 @@ struct APITabView: View {
             )
             return
         }
+        let trimmedModel = selectedModel.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmedModel.isEmpty else {
+            showStatus(
+                l.lang == .zh
+                    ? "Model ID 不能为空。"
+                    : "Model ID cannot be empty.",
+                failed: true
+            )
+            return
+        }
         let providerToSave = provider
-        let modelToSave = selectedModel
+        let modelToSave = provider.providerPreset.normalizedModel(trimmedModel)
         let keyToSave = apiKey
         let consentToSave = hasDataProcessingConsent
         let requiresReplacement = configurationRecoveryRequired
@@ -700,7 +736,7 @@ struct APITabView: View {
         Task {
             defer { isKeyOperationInProgress = false }
             do {
-                let didSaveKey = try await Task.detached(priority: .userInitiated) {
+                let hasStoredKeyAfterSave = try await Task.detached(priority: .userInitiated) {
                     try TranscriptionConfigurationTransaction.perform {
                         let hasNewKey = !keyToSave
                             .trimmingCharacters(in: .whitespacesAndNewlines)
@@ -720,6 +756,11 @@ struct APITabView: View {
                         } else {
                             configuration = try TranscriptionConfigurationStore.shared
                                 .loadOrMigrate()
+                            let destinationChanged = configuration.endpoint.fingerprint
+                                != endpoint.fingerprint
+                            guard !destinationChanged || hasNewKey else {
+                                throw APIKeyStoreError.keyRequiredForDestinationChange
+                            }
                             if hasNewKey {
                                 configuration.apiKey = keyToSave
                             }
@@ -735,13 +776,13 @@ struct APITabView: View {
                         } else {
                             DataProcessingConsentStore.shared.revokeConsent(for: endpoint)
                         }
-                        return hasNewKey
+                        return configuration.apiKey != nil
                     }
                 }.value
-                if didSaveKey {
+                if hasStoredKeyAfterSave {
                     apiKey = ""
-                    hasStoredKey = true
                 }
+                hasStoredKey = hasStoredKeyAfterSave
                 configurationRecoveryRequired = false
                 if providerToSave == .custom {
                     customHost = endpoint.host
@@ -823,6 +864,11 @@ struct APITabView: View {
         hasDataProcessingConsent = DataProcessingConsentStore.shared.hasConsent(
             for: dataProcessingEndpoint
         )
+    }
+
+    private func clearStoredKeyForDestinationChange() {
+        apiKey = ""
+        hasStoredKey = false
     }
 
     private func updateDataProcessingConsent(_ isGranted: Bool) {

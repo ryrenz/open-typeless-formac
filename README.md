@@ -4,6 +4,8 @@
 
 An open-source macOS menu bar app for speech-to-text. Press a hotkey to start recording, press again to stop — your speech is transcribed and automatically inserted into the active text field.
 
+Current public release: **v1.0.1** (universal, signed, and notarized).
+
 Inspired by [Typeless](https://www.typeless.com/).
 
 ## Features
@@ -13,10 +15,10 @@ Inspired by [Typeless](https://www.typeless.com/).
 - **Popup fallback**: If no text field is focused, a floating panel shows the result with a Copy button
 - **Progress overlay**: A bottom-center overlay shows recording/transcribing status with audio level
 - **Double-tap cancel**: Quickly press the hotkey twice to cancel recording
-- **Multiple models**: Choose between gpt-4o-mini-transcribe, gpt-4o-transcribe, or whisper-1
-- **Custom API endpoint**: Works with any OpenAI-compatible API (Groq, Together AI, etc.)
+- **Multiple providers and models**: Built-in OpenAI, Groq, and Mistral presets, plus custom OpenAI-compatible endpoints; Groq audio requests remove the SDK's default `stream=false` field for incompatible endpoints
+- **Multilingual transcription**: Groq `whisper-large-v3-turbo` / `whisper-large-v3`, Mistral `voxtral-mini-latest`, and OpenAI transcription models
 - **Smart formatting**: Transcription output is automatically post-processed — Chinese punctuation for Chinese/mixed content, English punctuation for English-only, pangu-style spacing between CJK and Latin, natural paragraph breaks, and enumeration converted to numbered lists (1. 2. 3.)
-- **Dictionary**: Add proper nouns (product names, people, jargon) that are often misrecognized. Entries are sent to the model as transcription hints so it prefers the correct spelling, and silent hallucinations of dictionary terms are filtered out.
+- **Dictionary**: Add proper nouns (product names, people, jargon) that are often misrecognized. Entries are sent as transcription hints where the selected provider supports that field, and silent hallucinations of dictionary terms are filtered out.
 - **History**: Browse, copy, delete individual entries, clear all entries, and choose a local retention policy.
 - **Failed recording recovery**: Network/API failures preserve the original recording locally; reveal or permanently delete individual/all recordings in Settings.
 - **Crash-safe private configuration**: The API key, Provider, endpoint, and model are committed atomically as one versioned macOS Keychain item in both development and release builds.
@@ -46,12 +48,12 @@ On first launch, you'll be prompted to grant:
 
 When the API configuration is incomplete, OpenTypeless opens the required setup automatically on launch. A hotkey attempt also opens the same setup **before recording starts**, so no audio is recorded without a configured destination and your consent.
 
-- **Provider**: Choose "OpenAI" or "Custom" (for OpenAI-compatible endpoints)
-- **API Key**: Enter your OpenAI API key (`sk-...`)
-- **Model**: Choose a transcription model (default: `gpt-4o-mini-transcribe`)
+- **Provider**: Choose OpenAI, Groq, Mistral, or Custom (for another OpenAI-compatible endpoint)
+- **API Key**: Enter the key for the selected provider; it is stored only in the macOS Keychain
+- **Model**: Built-in providers show their supported models; Custom accepts a provider-supplied model ID
 - **Data processing**: Review the exact destination, read the bundled privacy policy, accept the disclosure, and continue. A new Provider or Custom endpoint needs its own consent; destinations you already approved are remembered. Clearing the checkbox revokes the current destination immediately, cancels its active network work, and Settings can revoke every saved destination at once. Re-approving a destination does not revive an older recording session.
 
-You can get an OpenAI API key at [platform.openai.com/api-keys](https://platform.openai.com/api-keys).
+Get keys from [OpenAI](https://platform.openai.com/api-keys), [Groq](https://console.groq.com/keys), or [Mistral](https://console.mistral.ai/api-keys).
 
 The app never reads an API key from environment variables. Development builds follow the same App → Keychain path as release builds. An interrupted settings save can retain only the complete old snapshot or the complete new snapshot, never a mixed key/endpoint pair.
 
@@ -75,7 +77,7 @@ The transcribed text will be automatically inserted into whatever text field you
 
 ## Pricing Estimate
 
-open-typeless uses the `gpt-4o-mini-transcribe` model by default.
+OpenTypeless includes OpenAI, Groq, and Mistral transcription models. New users can choose Groq for the lowest transcription cost; upgrades do not overwrite an existing provider selection.
 
 | Usage | Cost (USD) | Cost (CNY) |
 |-------|-----------|------------|
@@ -88,9 +90,14 @@ open-typeless uses the `gpt-4o-mini-transcribe` model by default.
 
 | Model | Cost/min | Accuracy |
 |-------|----------|----------|
-| gpt-4o-mini-transcribe | $0.003 | Great (default) |
+| gpt-4o-mini-transcribe | $0.003 | Great (OpenAI default) |
 | gpt-4o-transcribe | $0.006 | Best |
 | whisper-1 | $0.006 | Good |
+| Groq whisper-large-v3-turbo | ~$0.0007 | Very fast, multilingual |
+| Groq whisper-large-v3 | ~$0.0019 | Multilingual, accuracy first |
+| Mistral voxtral-mini-latest | $0.003 | Multilingual |
+
+Groq Turbo is about 22% of the `gpt-4o-mini-transcribe` transcription price, at roughly $0.04/hour. Mistral and OpenAI mini are currently both about $0.003/minute. Prices change; see the [Groq model prices](https://console.groq.com/docs/models), [Mistral API pricing](https://mistral.ai/pricing/api/), and [OpenAI API pricing](https://platform.openai.com/pricing). Groq bills a minimum of 10 seconds per request.
 
 ## Tech Stack
 
@@ -98,13 +105,35 @@ open-typeless uses the `gpt-4o-mini-transcribe` model by default.
 |-------|-----------|
 | App | Swift + SwiftUI + AppKit (MenuBarExtra + NSWindow) |
 | Audio | AVAudioRecorder (M4A, 44.1kHz mono) |
-| Transcription | [MacPaw/OpenAI](https://github.com/MacPaw/OpenAI) Swift SDK |
+| Transcription | [MacPaw/OpenAI](https://github.com/MacPaw/OpenAI) Swift SDK + provider compatibility middleware |
 | Text insertion | Accessibility direct insertion + guarded temporary clipboard/Cmd+V fallback |
 | Hotkeys | CGEvent tap (toggle mode, modifier-only key support) |
 
 ## Privacy and Local Data
 
 OpenTypeless has no ads, tracking, telemetry, or developer-operated analytics. Audio, dictionary hints, and transcript text are sent directly to the provider you select only after you consent. History and failed recordings remain on your Mac and can be deleted in Settings. See the full [Privacy Policy](PRIVACY.md).
+
+## Local Development Build and DMG
+
+Do not copy every Xcode build into `/Applications`. Xcode keeps its incremental build product in `.build/DerivedData`; the local install script replaces the one canonical app path and restores the previous app automatically if validation fails:
+
+```bash
+scripts/install-local.sh
+```
+
+To build without launching the app, or to use a Release build locally:
+
+```bash
+scripts/install-local.sh --configuration Release --no-launch
+```
+
+To create a local, non-notarized test DMG with isolated temporary staging:
+
+```bash
+scripts/build-dmg.sh
+```
+
+The output is `dist/local/OpenTypeless-<version>.dmg` plus a SHA-256 checksum. Local artifacts are kept separate from the formal `dist/` release directory and are never overwritten unless `--force` is explicit. These scripts do not upload to GitHub; use `scripts/release-dmg.sh` for the public universal notarized release.
 
 ## Creating a Notarized DMG
 
@@ -121,19 +150,19 @@ Public distribution requires an Apple **Developer ID Application** certificate a
 3. Commit all release changes and create a version tag that points to that commit, then verify prerequisites:
    ```bash
    scripts/release-dmg.sh \
-     --version 1.0.0 \
-     --build 1 \
+     --version 1.0.1 \
+     --build 2 \
      --team-id YOURTEAMID \
-     --tag v1.0.0 \
+     --tag v1.0.1 \
      --preflight-only
    ```
 4. Create, notarize, staple, and verify the universal DMG:
    ```bash
    scripts/release-dmg.sh \
-     --version 1.0.0 \
-     --build 1 \
+     --version 1.0.1 \
+     --build 2 \
      --team-id YOURTEAMID \
-     --tag v1.0.0
+     --tag v1.0.1
    ```
 
 The output is written to `dist/OpenTypeless-<version>.dmg` with a SHA-256 checksum. Any signing, notarization, stapling, Gatekeeper, or architecture check failure stops the release.

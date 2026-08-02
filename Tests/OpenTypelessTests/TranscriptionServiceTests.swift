@@ -1,7 +1,93 @@
+import Foundation
 import XCTest
 @testable import OpenTypeless
 
 final class TranscriptionServiceTests: XCTestCase {
+    func testAudioTranscriptionCompatibilityMiddlewareRemovesDefaultFalseStream() throws {
+        let boundary = "test-boundary"
+        let body = Data(
+            (
+                "--\(boundary)\r\n"
+                    + "Content-Disposition: form-data; name=\"model\"\r\n\r\n"
+                    + "whisper-large-v3-turbo\r\n"
+                    + "--\(boundary)\r\n"
+                    + "Content-Disposition: form-data; name=\"stream\"\r\n\r\n"
+                    + "false\r\n"
+                    + "--\(boundary)--\r\n"
+            ).utf8
+        )
+        var request = URLRequest(
+            url: URL(string: "https://api.groq.com/openai/v1/audio/transcriptions")!
+        )
+        request.setValue(
+            "multipart/form-data; boundary=\(boundary)",
+            forHTTPHeaderField: "Content-Type"
+        )
+        request.setValue("999", forHTTPHeaderField: "Content-Length")
+        request.httpBody = body
+
+        let compatibleRequest = AudioTranscriptionCompatibilityMiddleware()
+            .intercept(request: request)
+
+        let compatibleBody = try XCTUnwrap(compatibleRequest.httpBody)
+        let compatibleBodyText = try XCTUnwrap(
+            String(data: compatibleBody, encoding: .utf8)
+        )
+        XCTAssertTrue(compatibleBodyText.contains("name=\"model\""))
+        XCTAssertFalse(compatibleBodyText.contains("name=\"stream\""))
+        XCTAssertNil(compatibleRequest.value(forHTTPHeaderField: "Content-Length"))
+    }
+
+    func testAudioTranscriptionCompatibilityMiddlewarePreservesStreamingRequests() throws {
+        let boundary = "test-boundary"
+        let body = Data(
+            (
+                "--\(boundary)\r\n"
+                    + "Content-Disposition: form-data; name=\"stream\"\r\n\r\n"
+                    + "true\r\n"
+                    + "--\(boundary)--\r\n"
+            ).utf8
+        )
+        var request = URLRequest(
+            url: URL(string: "https://api.groq.com/openai/v1/audio/transcriptions")!
+        )
+        request.setValue(
+            "multipart/form-data; boundary=\(boundary)",
+            forHTTPHeaderField: "Content-Type"
+        )
+        request.httpBody = body
+
+        let compatibleRequest = AudioTranscriptionCompatibilityMiddleware()
+            .intercept(request: request)
+
+        XCTAssertEqual(compatibleRequest.httpBody, body)
+    }
+
+    func testAudioTranscriptionCompatibilityMiddlewareIgnoresNonAudioRequests() throws {
+        let boundary = "test-boundary"
+        let body = Data(
+            (
+                "--\(boundary)\r\n"
+                    + "Content-Disposition: form-data; name=\"stream\"\r\n\r\n"
+                    + "false\r\n"
+                    + "--\(boundary)--\r\n"
+            ).utf8
+        )
+        var request = URLRequest(
+            url: URL(string: "https://api.groq.com/openai/v1/chat/completions")!
+        )
+        request.setValue(
+            "multipart/form-data; boundary=\(boundary)",
+            forHTTPHeaderField: "Content-Type"
+        )
+        request.httpBody = body
+
+        let compatibleRequest = AudioTranscriptionCompatibilityMiddleware()
+            .intercept(request: request)
+
+        XCTAssertEqual(compatibleRequest.httpBody, body)
+    }
+
     func testLooksLikePromptEchoMatchesExactPrompt() {
         let prompt = "Prefer these spellings when they match the audio: Claude Code, ClaudeCode, skill, 读取."
 

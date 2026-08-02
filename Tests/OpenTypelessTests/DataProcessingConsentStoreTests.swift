@@ -49,6 +49,18 @@ final class DataProcessingConsentStoreTests: XCTestCase {
         XCTAssertEqual(first.displayAddress, "https://api.openai.com/v1")
     }
 
+    func testBuiltInProviderEndpointsHaveDistinctConsentFingerprints() {
+        let openAI = DataProcessingEndpoint.current(provider: .openAI)
+        let groq = DataProcessingEndpoint.current(provider: .groq)
+        let mistral = DataProcessingEndpoint.current(provider: .mistral)
+
+        XCTAssertNotEqual(openAI.fingerprint, groq.fingerprint)
+        XCTAssertNotEqual(openAI.fingerprint, mistral.fingerprint)
+        XCTAssertNotEqual(groq.fingerprint, mistral.fingerprint)
+        XCTAssertEqual(groq.displayAddress, "https://api.groq.com/openai/v1")
+        XCTAssertEqual(mistral.displayAddress, "https://api.mistral.ai/v1")
+    }
+
     func testRevokeRemovesConsent() {
         let (store, defaults, suiteName) = makeStore()
         defer { defaults.removePersistentDomain(forName: suiteName) }

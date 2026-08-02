@@ -1,6 +1,6 @@
 # OpenTypeless Privacy Policy
 
-Last updated: July 30, 2026
+Last updated: August 2, 2026
 
 OpenTypeless is an open-source macOS speech-to-text utility. It does not include advertising, tracking, telemetry, or developer-operated analytics.
 
@@ -12,7 +12,7 @@ OpenTypeless sends data only after you accept the in-app data-processing disclos
 - Personal dictionary terms used as spelling hints.
 - Transcript text sent for formatting.
 
-The default provider is OpenAI. You may instead configure an OpenAI-compatible endpoint. The selected provider receives and processes these requests under its own terms and privacy policy, and may link them to the account associated with your API key. OpenTypeless and its developer do not proxy, receive, or store these network requests.
+The built-in providers are OpenAI, Groq, and Mistral. You may also configure an OpenAI-compatible endpoint. The selected provider receives and processes these requests under its own terms and privacy policy, and may link them to the account associated with your API key. OpenTypeless and its developer do not proxy, receive, or store these network requests.
 
 Changing the provider or custom endpoint requires consent for the new destination before another request can be sent.
 

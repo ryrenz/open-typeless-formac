@@ -1,4 +1,5 @@
 import Foundation
+import Security
 import XCTest
 @testable import OpenTypeless
 
@@ -16,6 +17,10 @@ final class APIKeyStoreTests: XCTestCase {
         } catch APIKeyStoreError.keychain(errSecInteractionNotAllowed) {
             throw XCTSkip(
                 "The XCTest runner cannot access the Data Protection Keychain in this environment."
+            )
+        } catch APIKeyStoreError.keychain(errSecMissingEntitlement) {
+            throw XCTSkip(
+                "The XCTest runner does not have the entitlement required for the Data Protection Keychain."
             )
         }
 

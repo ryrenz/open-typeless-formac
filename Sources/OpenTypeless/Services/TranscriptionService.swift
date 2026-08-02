@@ -48,15 +48,14 @@ enum TranscriptionSegmentError: Error, LocalizedError {
 
 enum APIProvider: String, CaseIterable, Identifiable, Codable {
     case openAI = "openai"
+    case groq = "groq"
+    case mistral = "mistral"
     case custom = "custom"
 
     var id: String { rawValue }
 
     var displayName: String {
-        switch self {
-        case .openAI: return "OpenAI"
-        case .custom: return "Custom (OpenAI-compatible)"
-        }
+        providerPreset.displayName
     }
 }
 
@@ -76,13 +75,67 @@ protocol TranscriptionTransport {
     func format(_ text: String) async throws -> String
 }
 
+struct AudioTranscriptionCompatibilityMiddleware: OpenAIMiddleware, Sendable {
+    func intercept(request: URLRequest) -> URLRequest {
+        guard request.url?.path.hasSuffix("/audio/transcriptions") == true,
+              let contentType = request.value(forHTTPHeaderField: "Content-Type"),
+              let boundary = Self.boundary(from: contentType),
+              let body = request.httpBody
+        else {
+            return request
+        }
+
+        let streamPart = "--\(boundary)\r\n"
+            + "Content-Disposition: form-data; name=\"stream\"\r\n\r\n"
+            + "false\r\n"
+        guard let streamPartData = streamPart.data(using: .utf8),
+              let streamPartRange = body.range(of: streamPartData)
+        else {
+            return request
+        }
+
+        var compatibleRequest = request
+        var compatibleBody = body
+        compatibleBody.removeSubrange(streamPartRange)
+        compatibleRequest.httpBody = compatibleBody
+        compatibleRequest.setValue(nil, forHTTPHeaderField: "Content-Length")
+        return compatibleRequest
+    }
+
+    private static func boundary(from contentType: String) -> String? {
+        let parameters = contentType
+            .split(separator: ";")
+            .map { String($0).trimmingCharacters(in: .whitespacesAndNewlines) }
+        guard let boundaryParameter = parameters.first(where: {
+            $0.lowercased().hasPrefix("boundary=")
+        }) else {
+            return nil
+        }
+
+        return String(boundaryParameter.dropFirst("boundary=".count))
+            .trimmingCharacters(in: CharacterSet(charactersIn: "\""))
+    }
+}
+
 final class OpenAITranscriptionTransport: TranscriptionTransport {
     private let transcriptionClient: OpenAI
     private let formattingClient: OpenAI
+    private let formattingModel: String?
+    private let transcriptionPromptPolicy: TranscriptionPromptPolicy
+    private let formattingTokenLimitPolicy: FormattingTokenLimitPolicy
 
-    init(transcriptionClient: OpenAI, formattingClient: OpenAI) {
+    init(
+        transcriptionClient: OpenAI,
+        formattingClient: OpenAI,
+        formattingModel: String? = StoredTranscriptionConfiguration.defaultFormattingModel,
+        transcriptionPromptPolicy: TranscriptionPromptPolicy = .standard,
+        formattingTokenLimitPolicy: FormattingTokenLimitPolicy = .maxCompletionTokens
+    ) {
         self.transcriptionClient = transcriptionClient
         self.formattingClient = formattingClient
+        self.formattingModel = formattingModel
+        self.transcriptionPromptPolicy = transcriptionPromptPolicy
+        self.formattingTokenLimitPolicy = formattingTokenLimitPolicy
     }
 
     func transcribe(
@@ -95,14 +148,20 @@ final class OpenAITranscriptionTransport: TranscriptionTransport {
             file: audioData,
             fileType: Self.fileType(for: audioFormat),
             model: .init(model),
-            prompt: prompt
+            prompt: transcriptionPromptPolicy.applying(to: prompt)
         )
         let result = try await transcriptionClient.audioTranscriptions(query: query)
         return result.text.trimmingCharacters(in: .whitespacesAndNewlines)
     }
 
     func format(_ text: String) async throws -> String {
-        try await TranscriptionFormatter.format(text, client: formattingClient)
+        guard let formattingModel else { return text }
+        return try await TranscriptionFormatter.format(
+            text,
+            client: formattingClient,
+            model: formattingModel,
+            tokenLimitPolicy: formattingTokenLimitPolicy
+        )
     }
 
     private static func fileType(
@@ -364,7 +423,8 @@ final class TranscriptionService {
             await onProgress?(index + 1, batch.chunks.count)
             let segmentPrompt = Self.makeSegmentPrompt(
                 basePrompt: prompt,
-                previousTranscript: rawTranscript
+                previousTranscript: rawTranscript,
+                policy: configuration.endpoint.provider.providerPreset.transcriptionPromptPolicy
             )
 
             do {
@@ -464,19 +524,51 @@ final class TranscriptionService {
 
     static func makeSegmentPrompt(
         basePrompt: String?,
-        previousTranscript: String
+        previousTranscript: String,
+        policy: TranscriptionPromptPolicy = .standard
     ) -> String? {
+        guard policy != .unsupported else { return nil }
+
         let base = basePrompt?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
         let previous = previousTranscript
             .trimmingCharacters(in: .whitespacesAndNewlines)
             .suffix(previousContextLimit)
 
         if previous.isEmpty {
-            return base.isEmpty ? nil : base
+            guard !base.isEmpty else { return nil }
+            if case let .limited(maxCharacters) = policy,
+               base.count > maxCharacters {
+                return String(base.prefix(maxCharacters))
+            }
+            return base
         }
 
         let context = "Continue from this preceding transcript context: \(previous)"
-        return base.isEmpty ? context : "\(base)\n\(context)"
+        let prompt = base.isEmpty ? context : "\(base)\n\(context)"
+
+        guard case let .limited(maxCharacters) = policy,
+              prompt.count > maxCharacters
+        else {
+            return prompt
+        }
+
+        if base.count >= maxCharacters {
+            return String(base.prefix(maxCharacters))
+        }
+
+        let separatorLength = base.isEmpty ? 0 : 1
+        let contextPrefix = "Continue from this preceding transcript context: "
+        let availableCharacters = maxCharacters
+            - base.count
+            - separatorLength
+            - contextPrefix.count
+        guard availableCharacters > 0 else {
+            return String(base.prefix(maxCharacters))
+        }
+
+        let previousTail = String(previous.suffix(availableCharacters))
+        let limitedContext = "\(contextPrefix)\(previousTail)"
+        return base.isEmpty ? limitedContext : "\(base)\n\(limitedContext)"
     }
 
     private func transcribeWithRetry(
@@ -565,20 +657,25 @@ final class TranscriptionService {
             transcriptionClient: buildClient(
                 apiKey: apiKey,
                 endpoint: endpoint,
-                timeoutInterval: Self.transcriptionTimeout
+                timeoutInterval: Self.transcriptionTimeout,
+                middlewares: [AudioTranscriptionCompatibilityMiddleware()]
             ),
             formattingClient: buildClient(
                 apiKey: apiKey,
                 endpoint: endpoint,
                 timeoutInterval: Self.formattingTimeout
-            )
+            ),
+            formattingModel: endpoint.provider.providerPreset.formattingModel,
+            transcriptionPromptPolicy: endpoint.provider.providerPreset.transcriptionPromptPolicy,
+            formattingTokenLimitPolicy: endpoint.provider.providerPreset.formattingTokenLimitPolicy
         )
     }
 
     private func buildClient(
         apiKey: String,
         endpoint: DataProcessingEndpoint,
-        timeoutInterval: TimeInterval
+        timeoutInterval: TimeInterval,
+        middlewares: [OpenAIMiddleware] = []
     ) -> OpenAI {
         let config: OpenAI.Configuration
         switch endpoint.provider {
@@ -587,7 +684,7 @@ final class TranscriptionService {
                 token: apiKey,
                 timeoutInterval: timeoutInterval
             )
-        case .custom:
+        case .groq, .mistral, .custom:
             config = OpenAI.Configuration(
                 token: apiKey,
                 host: endpoint.host,
@@ -597,7 +694,7 @@ final class TranscriptionService {
                 timeoutInterval: timeoutInterval
             )
         }
-        return OpenAI(configuration: config)
+        return OpenAI(configuration: config, middlewares: middlewares)
     }
 
     private static func audioFormat(for url: URL) -> TranscriptionAudioFormat {

@@ -185,6 +185,7 @@ xcodebuild test \
     -destination "platform=macOS" \
     -disableAutomaticPackageResolution \
     -onlyUsePackageVersionsFromResolvedFile \
+    -skipPackageUpdates \
     -allowProvisioningUpdates \
     -allowProvisioningDeviceRegistration \
     CODE_SIGN_STYLE=Automatic \
@@ -199,6 +200,7 @@ xcodebuild archive \
     -archivePath "$ARCHIVE_PATH" \
     -disableAutomaticPackageResolution \
     -onlyUsePackageVersionsFromResolvedFile \
+    -skipPackageUpdates \
     -allowProvisioningUpdates \
     -allowProvisioningDeviceRegistration \
     ARCHS="arm64 x86_64" \
