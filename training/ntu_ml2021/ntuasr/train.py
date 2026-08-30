@@ -84,6 +84,10 @@ def parse_arguments() -> argparse.Namespace:
     parser.add_argument("--seed", type=int, default=42)
     parser.add_argument("--resume-from-checkpoint", type=Path, default=None)
     parser.add_argument("--eval-steps", type=int, default=250)
+    parser.add_argument("--per-device-train-batch-size", type=int, default=4)
+    parser.add_argument("--per-device-eval-batch-size", type=int, default=8)
+    parser.add_argument("--gradient-accumulation-steps", type=int, default=4)
+    parser.add_argument("--dataloader-num-workers", type=int, default=4)
     return parser.parse_args()
 
 
@@ -175,9 +179,9 @@ def main() -> None:
 
     training_arguments = Seq2SeqTrainingArguments(
         output_dir=str(arguments.output_dir / "checkpoints"),
-        per_device_train_batch_size=1,
-        per_device_eval_batch_size=1,
-        gradient_accumulation_steps=16,
+        per_device_train_batch_size=arguments.per_device_train_batch_size,
+        per_device_eval_batch_size=arguments.per_device_eval_batch_size,
+        gradient_accumulation_steps=arguments.gradient_accumulation_steps,
         learning_rate=arguments.learning_rate,
         num_train_epochs=arguments.num_train_epochs,
         fp16=torch.cuda.is_available(),
@@ -195,7 +199,9 @@ def main() -> None:
         label_names=["labels"],
         report_to=[],
         remove_unused_columns=False,
-        dataloader_num_workers=2,
+        dataloader_num_workers=arguments.dataloader_num_workers,
+        dataloader_pin_memory=True,
+        dataloader_persistent_workers=True,
         optim="adamw_torch",
         seed=arguments.seed,
     )
