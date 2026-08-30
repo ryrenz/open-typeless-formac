@@ -13,6 +13,13 @@ xcuserdata/
 *.xcworkspace/xcuserdata/
 .local/
 
+# Reproducible ASR experiment artifacts
+training/ntu_ml2021/artifacts/
+training/ntu_ml2021/.venv/
+training/ntu_ml2021/.cache/
+training/ntu_ml2021/**/__pycache__/
+training/ntu_ml2021/**/*.py[cod]
+
 # Build
 .build/
 build/
