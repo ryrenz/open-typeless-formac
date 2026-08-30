@@ -1,7 +1,6 @@
 import SwiftUI
 
 struct DictionaryTabView: View {
-    let l: L
     let store: DictionaryStore
 
     @State private var entries: [DictionaryEntry] = []
@@ -10,8 +9,7 @@ struct DictionaryTabView: View {
     @State private var editingEntryID: UUID?
     @State private var editingText = ""
 
-    init(l: L, store: DictionaryStore = .shared) {
-        self.l = l
+    init(store: DictionaryStore = .shared) {
         self.store = store
     }
 
@@ -165,36 +163,26 @@ struct DictionaryTabView: View {
         }
     }
 
-    private var dictionaryTitle: String { l.lang == .zh ? "词汇表" : "Dictionary" }
+    private var dictionaryTitle: String { "Dictionary" }
     private var dictionaryDescription: String {
-        l.lang == .zh
-            ? "添加容易被误识别的专有名词。系统会把这些词作为转写提示发给模型，帮助它优先使用正确拼写。"
-            : "Add proper nouns that are often misrecognized. These words are sent as transcription hints so the model prefers the correct spelling."
+        "Add proper nouns that are often misrecognized. These words are sent as transcription hints so the model prefers the correct spelling."
     }
-    private var addPlaceholder: String { l.lang == .zh ? "添加词条..." : "Add dictionary term..." }
-    private var addLabel: String { l.lang == .zh ? "添加" : "Add" }
+    private var addPlaceholder: String { "Add dictionary term..." }
+    private var addLabel: String { "Add" }
     private var emptyState: String {
-        l.lang == .zh
-            ? "还没有词条。先添加一些产品名、人名或固定术语，比如 Claude、Anthropic、Cursor。"
-            : "No entries yet. Add product names, people, or fixed terms such as Claude, Anthropic, or Cursor."
+        "No entries yet. Add product names, people, or fixed terms such as Claude, Anthropic, or Cursor."
     }
-    private var editPlaceholder: String { l.lang == .zh ? "编辑词条" : "Edit entry" }
-    private var autoLearnTitle: String { l.lang == .zh ? "自动学习" : "Auto-learn" }
-    private var autoLearnToggle: String { l.lang == .zh ? "启用自动学习（即将推出）" : "Enable auto-learn (Coming soon)" }
+    private var editPlaceholder: String { "Edit entry" }
+    private var autoLearnTitle: String { "Auto-learn" }
+    private var autoLearnToggle: String { "Enable auto-learn (Coming soon)" }
     private var autoLearnDescription: String {
-        l.lang == .zh
-            ? "首版只支持手动维护词汇表。后续版本会在用户修正转写结果后推荐新词条。"
-            : "Version one only supports manual dictionary management. Future versions can suggest new entries after you correct transcriptions."
+        "Version one only supports manual dictionary management. Future versions can suggest new entries after you correct transcriptions."
     }
-    private var autoTag: String { l.lang == .zh ? "自动学习" : "Auto" }
-    private var saveLabel: String { l.lang == .zh ? "保存" : "Save" }
-    private var cancelLabel: String { l.lang == .zh ? "取消" : "Cancel" }
-    private var editLabel: String { l.lang == .zh ? "编辑" : "Edit" }
-    private var deleteLabel: String { l.lang == .zh ? "删除" : "Delete" }
-    private var emptyValidation: String {
-        l.lang == .zh ? "词条不能为空。" : "Entry cannot be empty."
-    }
-    private var duplicateValidation: String {
-        l.lang == .zh ? "这个词条已经存在。" : "This entry already exists."
-    }
+    private var autoTag: String { "Auto" }
+    private var saveLabel: String { "Save" }
+    private var cancelLabel: String { "Cancel" }
+    private var editLabel: String { "Edit" }
+    private var deleteLabel: String { "Delete" }
+    private var emptyValidation: String { "Entry cannot be empty." }
+    private var duplicateValidation: String { "This entry already exists." }
 }

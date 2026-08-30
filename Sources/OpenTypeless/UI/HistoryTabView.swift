@@ -2,7 +2,6 @@ import AppKit
 import SwiftUI
 
 struct HistoryTabView: View {
-    let l: L
     let store: HistoryStore
 
     @State private var entries: [HistoryEntry] = []
@@ -12,8 +11,7 @@ struct HistoryTabView: View {
     @State private var showsClearConfirmation = false
     @State private var errorMessage: String?
 
-    init(l: L, store: HistoryStore = .shared) {
-        self.l = l
+    init(store: HistoryStore = .shared) {
         self.store = store
     }
 
@@ -173,45 +171,37 @@ struct HistoryTabView: View {
     private func retentionLabel(for policy: HistoryRetentionPolicy) -> String {
         switch policy {
         case .keepForever:
-            return l.lang == .zh ? "永久保留" : "Keep forever"
+            return "Keep forever"
         case .keepMonth:
-            return l.lang == .zh ? "保留一个月" : "Keep a month"
+            return "Keep a month"
         case .keepWeek:
-            return l.lang == .zh ? "保留一周" : "Keep a week"
+            return "Keep a week"
         case .keep24Hours:
-            return l.lang == .zh ? "保留 24 小时" : "Keep 24 hours"
+            return "Keep 24 hours"
         }
     }
 
-    private var historyTitle: String { l.lang == .zh ? "历史记录" : "History" }
+    private var historyTitle: String { "History" }
     private var historyDescription: String {
-        l.lang == .zh
-            ? "每次完成转写后，最终插入或展示给用户的文本都会自动保存在本地。"
-            : "After each transcription completes, the final text shown or inserted for the user is saved locally."
+        "After each transcription completes, the final text shown or inserted for the user is saved locally."
     }
-    private var retentionTitle: String { l.lang == .zh ? "保留策略" : "Retention" }
+    private var retentionTitle: String { "Retention" }
     private var emptyState: String {
-        l.lang == .zh
-            ? "还没有历史记录。完成一次转写后，这里会自动出现对应文本。"
-            : "No history yet. Completed transcriptions will appear here automatically."
+        "No history yet. Completed transcriptions will appear here automatically."
     }
-    private var copyLabel: String { l.lang == .zh ? "复制" : "Copy" }
-    private var copiedLabel: String { l.lang == .zh ? "已复制" : "Copied" }
-    private var deleteLabel: String { l.lang == .zh ? "删除记录" : "Delete Entry" }
-    private var clearAllLabel: String { l.lang == .zh ? "清空全部" : "Clear All" }
-    private var cancelLabel: String { l.lang == .zh ? "取消" : "Cancel" }
+    private var copyLabel: String { "Copy" }
+    private var copiedLabel: String { "Copied" }
+    private var deleteLabel: String { "Delete Entry" }
+    private var clearAllLabel: String { "Clear All" }
+    private var cancelLabel: String { "Cancel" }
     private var entryCountLabel: String {
-        l.lang == .zh ? "\(entries.count) 条本地记录" : "\(entries.count) local entries"
+        "\(entries.count) local entries"
     }
     private var deleteConfirmation: String {
-        l.lang == .zh
-            ? "这条历史记录将从本机永久删除。"
-            : "This history entry will be permanently deleted from this Mac."
+        "This history entry will be permanently deleted from this Mac."
     }
     private var clearAllConfirmation: String {
-        l.lang == .zh
-            ? "所有转写历史将从本机永久删除，此操作无法撤销。"
-            : "All transcription history will be permanently deleted from this Mac. This cannot be undone."
+        "All transcription history will be permanently deleted from this Mac. This cannot be undone."
     }
 
     private static let dateFormatter: DateFormatter = {

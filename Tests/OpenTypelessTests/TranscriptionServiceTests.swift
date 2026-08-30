@@ -89,7 +89,7 @@ final class TranscriptionServiceTests: XCTestCase {
     }
 
     func testLooksLikePromptEchoMatchesExactPrompt() {
-        let prompt = "Prefer these spellings when they match the audio: Claude Code, ClaudeCode, skill, 读取."
+        let prompt = "Prefer these spellings when they match the audio: Claude Code, ClaudeCode, skill, Readwise."
 
         XCTAssertTrue(TranscriptionService.looksLikePromptEcho(prompt, prompt: prompt))
     }

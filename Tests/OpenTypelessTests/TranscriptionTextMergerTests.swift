@@ -12,13 +12,23 @@ final class TranscriptionTextMergerTests: XCTestCase {
         )
     }
 
-    func testRemovesChineseOverlap() {
+    func testRemovesOverlapBeforeFullWidthPunctuation() {
         XCTAssertEqual(
             TranscriptionTextMerger.removingOverlap(
-                previous: "这是上一段的结尾",
-                next: "上一段的结尾，然后继续"
+                previous: "This is the end of the previous segment",
+                next: "the end of the previous segment，then continue"
             ),
-            "，然后继续"
+            "，then continue"
+        )
+    }
+
+    func testRemovesCJKOverlap() {
+        let previous = "\u{8FD9}\u{662F}\u{4E0A}\u{4E00}\u{6BB5}\u{7684}\u{7ED3}\u{5C3E}"
+        let next = "\u{4E0A}\u{4E00}\u{6BB5}\u{7684}\u{7ED3}\u{5C3E}\u{FF0C}\u{7136}\u{540E}\u{7EE7}\u{7EED}"
+
+        XCTAssertEqual(
+            TranscriptionTextMerger.removingOverlap(previous: previous, next: next),
+            "\u{FF0C}\u{7136}\u{540E}\u{7EE7}\u{7EED}"
         )
     }
 
