@@ -94,8 +94,8 @@ final class HotkeyManager {
 
     // MARK: - Internal
 
-    fileprivate func handleEvent(_ type: CGEventType, event: CGEvent) -> Unmanaged<CGEvent>? {
-        guard !isPaused else { return Unmanaged.passRetained(event) }
+    func handleEvent(_ type: CGEventType, event: CGEvent) -> Unmanaged<CGEvent>? {
+        guard !isPaused else { return Unmanaged.passUnretained(event) }
 
         let keyCode = CGKeyCode(event.getIntegerValueField(.keyboardEventKeycode))
 
@@ -118,7 +118,7 @@ final class HotkeyManager {
             break
         }
 
-        return Unmanaged.passRetained(event)
+        return Unmanaged.passUnretained(event)
     }
 
     /// Match modifier-only hotkeys (e.g. Right Alt pressed down)
@@ -170,11 +170,11 @@ private func hotkeyCallback(
                 CGEvent.tapEnable(tap: tap, enable: true)
             }
         }
-        return Unmanaged.passRetained(event)
+        return Unmanaged.passUnretained(event)
     }
 
     guard let userInfo = userInfo else {
-        return Unmanaged.passRetained(event)
+        return Unmanaged.passUnretained(event)
     }
 
     let manager = Unmanaged<HotkeyManager>.fromOpaque(userInfo).takeUnretainedValue()

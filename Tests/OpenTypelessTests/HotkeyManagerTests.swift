@@ -1,3 +1,4 @@
+import CoreGraphics
 import XCTest
 @testable import OpenTypeless
 
@@ -34,5 +35,29 @@ final class HotkeyManagerTests: XCTestCase {
         let manager = HotkeyManager()
         manager.pause()
         manager.resume()
+    }
+
+    func testPassThroughDoesNotRetainEvent() throws {
+        let manager = HotkeyManager()
+        let event = try XCTUnwrap(
+            CGEvent(
+                keyboardEventSource: nil,
+                virtualKey: 0,
+                keyDown: true
+            )
+        )
+        let retainCountBefore = CFGetRetainCount(event)
+
+        for _ in 0..<100 {
+            guard manager.handleEvent(.keyDown, event: event) != nil else {
+                return XCTFail("An unmatched key event must pass through")
+            }
+        }
+
+        XCTAssertLessThanOrEqual(
+            CFGetRetainCount(event),
+            retainCountBefore + 2,
+            "Pass-through events must not accumulate one retain per keyboard event"
+        )
     }
 }
