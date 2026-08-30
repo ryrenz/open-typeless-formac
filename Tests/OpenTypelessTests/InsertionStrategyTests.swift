@@ -135,6 +135,11 @@ final class InsertionStrategyTests: XCTestCase {
         }
         XCTAssertEqual(environment.clipboardWrites, ["recoverable text"])
         XCTAssertEqual(environment.pasteShortcutPIDs, [1234])
+        XCTAssertEqual(environment.clipboardRestores, 1)
+        XCTAssertEqual(
+            environment.restoredRecoveryWindows,
+            environment.stagedRecoveryWindows
+        )
     }
 
     func testFailedClipboardPasteShowsPopupAndKeepsTranscriptAvailable() async {
@@ -143,7 +148,7 @@ final class InsertionStrategyTests: XCTestCase {
         let environment = MockInsertionEnvironment()
         environment.refreshedElement = refreshedElement
         environment.canReceivePaste = true
-        environment.pasteShortcutSucceeds = false
+        environment.pasteDeliveryResult = .failed
 
         let result = await InsertionStrategy.insert(
             text: "recoverable text",
@@ -155,9 +160,34 @@ final class InsertionStrategyTests: XCTestCase {
             return XCTFail("Expected failed clipboard paste to show the recovery popup")
         }
         XCTAssertEqual(text, "recoverable text")
-        XCTAssertEqual(recoveryWindow, .standard)
+        XCTAssertEqual(recoveryWindow.durationSeconds, ClipboardRecoveryWindow.standard.durationSeconds)
         XCTAssertEqual(environment.clipboardWrites, ["recoverable text"])
         XCTAssertEqual(environment.pasteShortcutPIDs, [1234])
+        XCTAssertEqual(environment.clipboardRestores, 0)
+    }
+
+    func testUnverifiedClipboardPasteShowsRecoveryPopup() async {
+        let refreshedElement = AXUIElementCreateSystemWide()
+        let snapshot = OutputTargetSnapshot(focusedElement: nil, appPID: 1234)
+        let environment = MockInsertionEnvironment()
+        environment.refreshedElement = refreshedElement
+        environment.canReceivePaste = true
+        environment.pasteDeliveryResult = .unverified
+
+        let result = await InsertionStrategy.insert(
+            text: "unverified paste",
+            snapshot: snapshot,
+            environment: environment
+        )
+
+        guard case .showRecoveryPopup(let text, let recoveryWindow) = result else {
+            return XCTFail("An unverified paste must keep the recovery UI visible")
+        }
+        XCTAssertEqual(text, "unverified paste")
+        XCTAssertEqual(recoveryWindow.durationSeconds, ClipboardRecoveryWindow.standard.durationSeconds)
+        XCTAssertEqual(environment.clipboardWrites, ["unverified paste"])
+        XCTAssertEqual(environment.pasteShortcutPIDs, [1234])
+        XCTAssertEqual(environment.clipboardRestores, 0)
     }
 
     func testClipboardStagingFailureShowsPopupWithoutPostingPaste() async {
@@ -250,6 +280,30 @@ final class InsertionStrategyTests: XCTestCase {
         XCTAssertEqual(environment.pasteShortcutPIDs, [1234])
     }
 
+    func testLongTextUsesRecoverableClipboardDeliveryInsteadOfAX() async {
+        let refreshedElement = AXUIElementCreateSystemWide()
+        let snapshot = OutputTargetSnapshot(focusedElement: nil, appPID: 1234)
+        let environment = MockInsertionEnvironment()
+        environment.refreshedElement = refreshedElement
+        environment.canReceivePaste = true
+        environment.successfulElement = refreshedElement
+        let text = String(repeating: "long transcript ", count: 400)
+
+        let result = await InsertionStrategy.insert(
+            text: text,
+            snapshot: snapshot,
+            environment: environment
+        )
+
+        guard case .pasteShortcutPosted = result else {
+            return XCTFail("Long text should use recoverable clipboard delivery")
+        }
+        XCTAssertGreaterThan(text.utf16.count, InsertionStrategy.maxDirectAXTextUTF16Length)
+        XCTAssertEqual(environment.attemptedElements.count, 0)
+        XCTAssertEqual(environment.clipboardWrites, [text])
+        XCTAssertEqual(environment.pasteShortcutPIDs, [1234])
+    }
+
     func testUnavailableClipboardPasteTargetDoesNotFallBackToAX() async {
         let capturedElement = AXUIElementCreateSystemWide()
         let snapshot = OutputTargetSnapshot(
@@ -283,6 +337,201 @@ final class InsertionStrategyTests: XCTestCase {
             .clipboardPaste
         )
     }
+
+    func testTerminalUsesClipboardPasteDelivery() {
+        XCTAssertEqual(
+            InsertionCompatibilityPolicy.deliveryMode(
+                forBundleIdentifier: "com.apple.Terminal"
+            ),
+            .clipboardPaste
+        )
+    }
+
+    func testPasteVerificationRequiresExactSelectedRangeReplacement() {
+        XCTAssertTrue(
+            ClipboardPasteVerifier.confirmsInsertion(
+                beforeValue: "prompt old suffix",
+                selectedRange: CFRange(location: 7, length: 3),
+                afterValue: "prompt new suffix",
+                insertedText: "new"
+            )
+        )
+    }
+
+    func testPasteVerificationRejectsPreexistingTextWithUnrelatedChange() {
+        XCTAssertFalse(
+            ClipboardPasteVerifier.confirmsInsertion(
+                beforeValue: "prompt repeated transcript",
+                selectedRange: CFRange(location: 7, length: 0),
+                afterValue: "prompt repeated transcript\nbackground output",
+                insertedText: "repeated transcript"
+            )
+        )
+    }
+
+    func testClipboardTransactionRejectsStaleRestoreWithoutTouchingPasteboard() {
+        let manager = ClipboardTransactionManager()
+        let pasteboard = MockClipboardPasteboard(changeCount: 10)
+        let currentID = UUID()
+        manager.begin(
+            id: currentID,
+            originalItems: [NSPasteboardItem()],
+            stagedText: "current transcript",
+            expectedChangeCount: pasteboard.changeCount
+        )
+
+        XCTAssertEqual(
+            manager.restore(transactionID: UUID(), on: pasteboard),
+            .stale
+        )
+        XCTAssertEqual(manager.currentTransactionID, currentID)
+        XCTAssertEqual(pasteboard.clearCount, 0)
+    }
+
+    func testClipboardTransactionAbandonsRestoreAfterExternalChange() {
+        let manager = ClipboardTransactionManager()
+        let pasteboard = MockClipboardPasteboard(changeCount: 10)
+        let transactionID = UUID()
+        manager.begin(
+            id: transactionID,
+            originalItems: [NSPasteboardItem()],
+            stagedText: "current transcript",
+            expectedChangeCount: pasteboard.changeCount
+        )
+        pasteboard.simulateExternalChange()
+
+        XCTAssertEqual(
+            manager.restore(transactionID: transactionID, on: pasteboard),
+            .abandoned
+        )
+        XCTAssertFalse(manager.hasPendingTransaction)
+        XCTAssertEqual(pasteboard.clearCount, 0)
+    }
+
+    func testClipboardTransactionRestagesTranscriptThenRestoresOnRetry() {
+        let manager = ClipboardTransactionManager()
+        let pasteboard = MockClipboardPasteboard(
+            changeCount: 10,
+            writeResults: [false, true]
+        )
+        let transactionID = UUID()
+        manager.begin(
+            id: transactionID,
+            originalItems: [NSPasteboardItem()],
+            stagedText: "recoverable transcript",
+            expectedChangeCount: pasteboard.changeCount
+        )
+
+        XCTAssertEqual(
+            manager.restore(transactionID: transactionID, on: pasteboard),
+            .retryScheduled
+        )
+        XCTAssertEqual(pasteboard.stagedStrings, ["recoverable transcript"])
+        XCTAssertEqual(manager.currentRetryCount, 1)
+
+        XCTAssertEqual(
+            manager.restore(transactionID: transactionID, on: pasteboard),
+            .restored
+        )
+        XCTAssertFalse(manager.hasPendingTransaction)
+    }
+
+    func testClipboardTransactionRetainsSnapshotAfterRetryLimit() {
+        let manager = ClipboardTransactionManager(maxRetryCount: 3)
+        let pasteboard = MockClipboardPasteboard(
+            changeCount: 10,
+            writeResults: [false, false, false, false]
+        )
+        let transactionID = UUID()
+        manager.begin(
+            id: transactionID,
+            originalItems: [NSPasteboardItem()],
+            stagedText: "recoverable transcript",
+            expectedChangeCount: pasteboard.changeCount
+        )
+
+        for _ in 0..<3 {
+            XCTAssertEqual(
+                manager.restore(transactionID: transactionID, on: pasteboard),
+                .retryScheduled
+            )
+        }
+        XCTAssertEqual(
+            manager.restore(transactionID: transactionID, on: pasteboard),
+            .retriesExhausted
+        )
+
+        XCTAssertTrue(manager.hasPendingTransaction)
+        XCTAssertEqual(manager.currentRetryCount, 4)
+        XCTAssertEqual(pasteboard.stagedStrings.count, 4)
+        XCTAssertEqual(pasteboard.currentString, "recoverable transcript")
+        XCTAssertTrue(
+            manager.clearPasteboardAfterExhaustedRestore(
+                transactionID: transactionID,
+                on: pasteboard
+            )
+        )
+        XCTAssertNil(pasteboard.currentString)
+        XCTAssertNotNil(
+            manager.originalItemsForRestaging(
+                currentChangeCount: pasteboard.changeCount
+            )
+        )
+    }
+
+    func testClipboardTransactionReportsTranscriptRestageFailure() {
+        let manager = ClipboardTransactionManager(maxRetryCount: 0)
+        let pasteboard = MockClipboardPasteboard(
+            changeCount: 10,
+            writeResults: [false],
+            setStringResults: [false]
+        )
+        let transactionID = UUID()
+        manager.begin(
+            id: transactionID,
+            originalItems: [NSPasteboardItem()],
+            stagedText: "recoverable transcript",
+            expectedChangeCount: pasteboard.changeCount
+        )
+
+        XCTAssertEqual(
+            manager.restore(transactionID: transactionID, on: pasteboard),
+            .retriesExhaustedWithoutTranscript
+        )
+        XCTAssertTrue(manager.hasPendingTransaction)
+        XCTAssertEqual(pasteboard.setStringAttempts, ["recoverable transcript"])
+        XCTAssertEqual(pasteboard.stagedStrings, [])
+        XCTAssertTrue(
+            manager.clearPasteboardAfterExhaustedRestore(
+                transactionID: transactionID,
+                on: pasteboard
+            )
+        )
+        XCTAssertNil(pasteboard.currentString)
+    }
+
+    func testClipboardTransactionClearsPartialRestoreBeforeRestagingTranscript() {
+        let manager = ClipboardTransactionManager()
+        let pasteboard = MockClipboardPasteboard(
+            changeCount: 10,
+            writeResults: [false],
+            simulatePartialWriteOnFailure: true
+        )
+        let transactionID = UUID()
+        manager.begin(
+            id: transactionID,
+            originalItems: [NSPasteboardItem()],
+            stagedText: "recoverable transcript",
+            expectedChangeCount: pasteboard.changeCount
+        )
+
+        XCTAssertEqual(
+            manager.restore(transactionID: transactionID, on: pasteboard),
+            .retryScheduled
+        )
+        XCTAssertEqual(pasteboard.clearCount, 2)
+        XCTAssertEqual(pasteboard.currentString, "recoverable transcript")
+    }
 }
 
 @MainActor
@@ -293,12 +542,15 @@ private final class MockInsertionEnvironment: InsertionEnvironment {
     var successfulElement: AXUIElement?
     var indeterminateElement: AXUIElement?
     var clipboardStagingSucceeds = true
-    var pasteShortcutSucceeds = true
+    var pasteDeliveryResult: ClipboardPasteDeliveryResult = .verified
     private(set) var preparedPIDs: [pid_t] = []
     private(set) var attemptedElements: [AXUIElement] = []
     private(set) var insertedTexts: [String] = []
     private(set) var clipboardWrites: [String] = []
     private(set) var pasteShortcutPIDs: [pid_t] = []
+    private(set) var clipboardRestores = 0
+    private(set) var stagedRecoveryWindows: [ClipboardRecoveryWindow] = []
+    private(set) var restoredRecoveryWindows: [ClipboardRecoveryWindow] = []
 
     func prepareTarget(pid: pid_t) async -> PreparedInsertionTarget {
         preparedPIDs.append(pid)
@@ -326,11 +578,84 @@ private final class MockInsertionEnvironment: InsertionEnvironment {
 
     func stageTemporaryClipboardRecovery(_ text: String) -> ClipboardRecoveryWindow? {
         clipboardWrites.append(text)
-        return clipboardStagingSucceeds ? .standard : nil
+        guard clipboardStagingSucceeds else { return nil }
+        let recoveryWindow = ClipboardRecoveryWindow.transaction(id: UUID())
+        stagedRecoveryWindows.append(recoveryWindow)
+        return recoveryWindow
     }
 
-    func postGlobalPasteShortcut(expectedFrontmostPID pid: pid_t) async -> Bool {
+    func restoreClipboardAfterVerifiedPaste(_ recoveryWindow: ClipboardRecoveryWindow) {
+        clipboardRestores += 1
+        restoredRecoveryWindows.append(recoveryWindow)
+    }
+
+    func postGlobalPasteShortcut(
+        expectedFrontmostPID pid: pid_t,
+        expectedText: String
+    ) async -> ClipboardPasteDeliveryResult {
         pasteShortcutPIDs.append(pid)
-        return pasteShortcutSucceeds
+        return pasteDeliveryResult
+    }
+}
+
+@MainActor
+private final class MockClipboardPasteboard: ClipboardPasteboardAccess {
+    private(set) var changeCount: Int
+    private var writeResults: [Bool]
+    private var setStringResults: [Bool]
+    private let simulatePartialWriteOnFailure: Bool
+    private(set) var clearCount = 0
+    private(set) var setStringAttempts: [String] = []
+    private(set) var stagedStrings: [String] = []
+    private(set) var currentString: String?
+
+    init(
+        changeCount: Int,
+        writeResults: [Bool] = [],
+        setStringResults: [Bool] = [],
+        simulatePartialWriteOnFailure: Bool = false
+    ) {
+        self.changeCount = changeCount
+        self.writeResults = writeResults
+        self.setStringResults = setStringResults
+        self.simulatePartialWriteOnFailure = simulatePartialWriteOnFailure
+    }
+
+    func clearContents() -> Int {
+        clearCount += 1
+        currentString = nil
+        changeCount += 1
+        return changeCount
+    }
+
+    func setString(
+        _ string: String,
+        forType dataType: NSPasteboard.PasteboardType
+    ) -> Bool {
+        _ = dataType
+        setStringAttempts.append(string)
+        let result = setStringResults.isEmpty ? true : setStringResults.removeFirst()
+        if result {
+            stagedStrings.append(string)
+            currentString = string
+            changeCount += 1
+        }
+        return result
+    }
+
+    func writeObjects(_ objects: [NSPasteboardWriting]) -> Bool {
+        _ = objects
+        let result = writeResults.isEmpty ? true : writeResults.removeFirst()
+        if result {
+            changeCount += 1
+        } else if simulatePartialWriteOnFailure {
+            currentString = "partial original content"
+            changeCount += 1
+        }
+        return result
+    }
+
+    func simulateExternalChange() {
+        changeCount += 1
     }
 }
