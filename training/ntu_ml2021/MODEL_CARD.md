@@ -6,7 +6,10 @@ This repository contains a reproducible training recipe and no trained model
 weights. Do not create a public release unless the data-rights gate in
 `NOTICE.md` has been independently cleared, the trained checkpoint has been
 evaluated on the complete untouched official test split, and only the aggregate
-public JSON report is included in release notes.
+public JSON report is included in release notes. The pinned dataset revision
+ships every `dev` file inside `test`, so test evaluation removes those 2,997
+files and scores the 11,919 held-out examples; the report records the
+exclusion.
 
 ## Base model
 

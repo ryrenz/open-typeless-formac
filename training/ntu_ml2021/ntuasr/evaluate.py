@@ -21,7 +21,11 @@ from ntuasr.constants import (
     PRIMARY_LANGUAGE,
     TRANSCRIPTION_TASK,
 )
-from ntuasr.data_validation import validate_decoded_example, validate_splits
+from ntuasr.data_validation import (
+    held_out_test_indices,
+    validate_decoded_example,
+    validate_splits,
+)
 from ntuasr.metrics import aggregate, cer, mer
 from ntuasr.normalization import normalize_transcript
 from ntuasr.whisper_configuration import configure_chinese_transcription
@@ -95,6 +99,15 @@ def main() -> None:
     raw_dataset = load_dataset(DATASET_ID, revision=DATASET_REVISION)
     validate_splits(raw_dataset)
     dataset = raw_dataset[arguments.split]
+    excluded_dev_files = 0
+    if arguments.split == "test":
+        held_out = held_out_test_indices(raw_dataset)
+        excluded_dev_files = len(dataset) - len(held_out)
+        dataset = dataset.select(held_out)
+        print(
+            f"Evaluating {len(dataset)} held-out test examples "
+            f"({excluded_dev_files} dev files excluded)"
+        )
     if arguments.max_samples is not None:
         dataset = dataset.select(range(min(arguments.max_samples, len(dataset))))
     dataset = dataset.cast_column("audio", Audio(sampling_rate=16_000))
@@ -159,6 +172,7 @@ def main() -> None:
         "dataset_revision": DATASET_REVISION,
         "dataset_fingerprint": raw_dataset[arguments.split]._fingerprint,
         "split": arguments.split,
+        "excluded_dev_files": excluded_dev_files,
         "samples": len(public_sample_hashes),
         "sample_selection": sample_selection,
         "sample_sha256": public_sample_hashes,

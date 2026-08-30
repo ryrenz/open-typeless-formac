@@ -10,7 +10,7 @@ from pathlib import Path
 from datasets import load_dataset
 
 from ntuasr.constants import DATASET_ID, DATASET_REVISION
-from ntuasr.data_validation import validate_splits
+from ntuasr.data_validation import held_out_test_indices, validate_splits
 from ntuasr.normalization import normalize_transcript
 
 
@@ -66,6 +66,7 @@ def main() -> None:
             split: write_split_manifest(dataset, split, arguments.output_dir)
             for split in ("train", "dev", "test")
         },
+        "held_out_test_examples": len(held_out_test_indices(dataset)),
     }
     (arguments.output_dir / "manifest.json").write_text(
         json.dumps(summary, indent=2, ensure_ascii=False) + "\n", encoding="utf-8"

@@ -11,7 +11,11 @@ OpenTypeless macOS application or its cloud transcription providers.
 - Adaptation: rank-32 LoRA on attention query and value projections
 - Training data: `ky552/ML2021_ASR_ST` at revision
   `1e121cc419e87eed7d4825400baa06f102931944`
-- Validation and final evaluation: the official `dev` and `test` splits
+- Validation and final evaluation: the official `dev` and `test` splits. The
+  pinned dataset revision ships every `dev` file, byte-identical, inside
+  `test`, so test evaluation always removes the 2,997 `dev` files and scores
+  the remaining 11,919 held-out examples. The exclusion count is recorded in
+  every evaluation report.
 - Decoder prompt: Chinese transcription. This matches the Mandarin-dominant,
   code-switched corpus while preserving English technical terms in the output.
 - Export target: a merged Hugging Face checkpoint and a quantized `whisper.cpp`

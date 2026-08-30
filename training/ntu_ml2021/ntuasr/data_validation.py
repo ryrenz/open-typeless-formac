@@ -36,10 +36,30 @@ def validate_splits(dataset) -> None:
             raise ValueError(f"{split} contains duplicate source file identifiers")
         split_files[split] = set(source_files)
 
-    for left, right in (("train", "dev"), ("train", "test"), ("dev", "test")):
+    for left, right in (("train", "dev"), ("train", "test")):
         overlap = split_files[left] & split_files[right]
         if overlap:
             raise ValueError(f"Official splits overlap: {left}/{right} has {len(overlap)} files")
+
+    # The pinned dataset revision ships every dev file, byte-identical, inside
+    # test. That containment is tolerated because held_out_test_indices removes
+    # dev files before test evaluation; any other dev/test overlap is fatal.
+    dev_test_overlap = split_files["dev"] & split_files["test"]
+    if dev_test_overlap and dev_test_overlap != split_files["dev"]:
+        raise ValueError(
+            "Official splits overlap: dev/test share "
+            f"{len(dev_test_overlap)} files without dev being fully contained in test"
+        )
+
+
+def held_out_test_indices(dataset) -> list[int]:
+    """Return the test indices whose source files do not appear in dev."""
+    dev_files = set(dataset["dev"]["file"])
+    return [
+        index
+        for index, source_file in enumerate(dataset["test"]["file"])
+        if source_file not in dev_files
+    ]
 
 
 def validate_decoded_example(example: Mapping[str, object], context: str) -> str:
