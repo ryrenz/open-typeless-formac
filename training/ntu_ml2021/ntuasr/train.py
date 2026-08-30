@@ -190,6 +190,9 @@ def main() -> None:
         load_best_model_at_end=True,
         metric_for_best_model="eval_loss",
         greater_is_better=False,
+        # The PEFT wrapper hides the base forward signature, so the Trainer
+        # cannot infer the label argument and would skip eval-loss computation.
+        label_names=["labels"],
         report_to=[],
         remove_unused_columns=False,
         dataloader_num_workers=2,
