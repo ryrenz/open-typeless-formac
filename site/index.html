@@ -1,15 +1,16 @@
 <!doctype html>
-<html lang="zh-CN">
+<html lang="en">
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="theme-color" content="#0a0e0d">
-  <meta name="description" content="OpenTypeless 是一个开源 macOS 语音输入工具。说出来，直接写进你正在使用的输入框。">
-  <meta property="og:title" content="OpenTypeless — 说出来，直接写进去">
-  <meta property="og:description" content="开源、私密、可控的 macOS 语音输入。">
+  <meta name="description" content="OpenTypeless is an open-source macOS dictation app. Press a key, talk, press again — the text lands in whatever field has focus. No account, no server in the middle.">
+  <meta property="og:title" content="OpenTypeless — Speak. It goes where you type.">
+  <meta property="og:description" content="Open-source macOS dictation. Your API key, your provider, your Mac. Nothing passes through us.">
   <meta property="og:type" content="website">
   <meta property="og:url" content="https://opentypeless.ryrenz.com">
-  <title>OpenTypeless — 说出来，直接写进去</title>
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Cpath d='M0 8a8 8 0 0 1 8-8h16a8 8 0 0 1 8 8v16a8 8 0 0 1-8 8H2a2 2 0 0 1-2-2z' fill='%23d8ff62'/%3E%3Ctext x='16' y='21.5' font-family='ui-monospace,Menlo,monospace' font-size='14' font-weight='800' text-anchor='middle' fill='%230a0e0d'%3EOT%3C/text%3E%3C/svg%3E">
+  <title>OpenTypeless — Speak. It goes where you type.</title>
   <style>
     :root {
       --ink: #0a0e0d;
@@ -18,7 +19,9 @@
       --panel-hi: #182320;
       --paper: #f1f0e8;
       --muted: #a8b2ac;
+      --dim: #76857c;
       --line: rgba(241, 240, 232, .14);
+      --line-soft: rgba(241, 240, 232, .07);
       --acid: #d8ff62;
       --cyan: #75e7d1;
       --orange: #ff9e68;
@@ -26,131 +29,205 @@
       --sans: "Avenir Next", "SF Pro Display", -apple-system, BlinkMacSystemFont, sans-serif;
       --mono: "SF Mono", "IBM Plex Mono", ui-monospace, Menlo, monospace;
       --max: 1160px;
+      --ease: cubic-bezier(.2, .7, .2, 1);
     }
     * { box-sizing: border-box; }
-    html { scroll-behavior: smooth; }
-    body { margin: 0; color: var(--paper); background: var(--ink); font-family: var(--sans); line-height: 1.5; }
+    html { scroll-behavior: smooth; scroll-padding-top: 90px; }
+    body { margin: 0; color: var(--paper); background: var(--ink); font-family: var(--sans); line-height: 1.5; -webkit-font-smoothing: antialiased; }
+    /* Film grain: takes the plastic edge off flat dark surfaces. Kept faint so text stays crisp. */
+    body::after { content: ""; position: fixed; inset: 0; z-index: 50; pointer-events: none; opacity: .05; background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='180' height='180'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.85' numOctaves='2' stitchTiles='stitch'/%3E%3CfeColorMatrix values='0 0 0 0 1 0 0 0 0 1 0 0 0 0 1 0 0 0 1 0'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E"); }
     a { color: inherit; text-decoration: none; }
     button { color: inherit; font: inherit; }
+    ::selection { background: var(--acid); color: var(--ink); }
+    :focus-visible { outline: 2px solid var(--acid); outline-offset: 3px; }
+    code { font-family: var(--mono); font-size: .92em; color: var(--paper); }
+    kbd { display: inline-flex; align-items: center; gap: 6px; padding: 3px 8px 4px; border: 1px solid var(--line); border-bottom-width: 2px; border-radius: 5px; background: var(--panel-hi); color: var(--paper); font-family: var(--mono); font-size: 11px; letter-spacing: .04em; white-space: nowrap; }
     .shell { width: min(var(--max), calc(100% - 48px)); margin: 0 auto; }
-    .nav { position: sticky; top: 0; z-index: 10; border-bottom: 1px solid var(--line); background: rgba(10, 14, 13, .86); backdrop-filter: blur(16px); }
+
+    /* Nav: starts transparent, gets a floor once the page moves. */
+    .nav { position: sticky; top: 0; z-index: 10; border-bottom: 1px solid transparent; background: transparent; transition: background .3s var(--ease), border-color .3s var(--ease); }
+    .nav.is-scrolled { border-bottom-color: var(--line); background: rgba(10, 14, 13, .82); backdrop-filter: blur(16px); -webkit-backdrop-filter: blur(16px); }
     .nav-inner { display: flex; align-items: center; justify-content: space-between; min-height: 74px; }
     .brand { display: flex; align-items: center; gap: 12px; font-family: var(--mono); font-size: 14px; letter-spacing: .08em; }
     .brand-mark { display: grid; place-items: center; width: 30px; height: 30px; color: var(--ink); background: var(--acid); border-radius: 8px 8px 8px 2px; font-weight: 800; }
-    .nav-links { display: flex; align-items: center; gap: 24px; color: var(--muted); font-size: 13px; }
+    .nav-links { display: flex; align-items: center; gap: 26px; color: var(--muted); font-size: 13px; }
+    .nav-links a { transition: color .2s; }
     .nav-links a:hover { color: var(--paper); }
-    .lang { border: 1px solid var(--line); border-radius: 999px; padding: 7px 11px; color: var(--paper); background: transparent; cursor: pointer; font-family: var(--mono); font-size: 11px; }
-    .hero { padding: 108px 0 88px; overflow: hidden; }
-    .hero-grid { display: grid; grid-template-columns: minmax(0, 1.05fr) minmax(340px, .95fr); align-items: center; gap: 72px; }
+    .nav-links .download-link { padding: 8px 12px; border: 1px solid var(--line); border-radius: 6px; color: var(--paper); font-weight: 600; }
+    .nav-links .download-link:hover { border-color: var(--acid); color: var(--acid); }
+
+    /* Hero */
+    .hero { position: relative; padding: 96px 0 92px; overflow: hidden; }
+    .hero::before { content: ""; position: absolute; top: -240px; right: -140px; width: 720px; height: 720px; border-radius: 50%; background: radial-gradient(closest-side, rgba(117, 231, 209, .07), transparent 72%); pointer-events: none; }
+    .hero-grid { position: relative; display: grid; grid-template-columns: minmax(0, 1fr) minmax(360px, .96fr); align-items: center; gap: 64px; }
     .eyebrow { display: inline-flex; align-items: center; gap: 9px; color: var(--acid); font-family: var(--mono); font-size: 11px; letter-spacing: .15em; text-transform: uppercase; }
     .eyebrow::before { content: ""; width: 24px; height: 1px; background: var(--acid); }
-    h1 { max-width: 650px; margin: 22px 0 22px; font-size: clamp(54px, 8.2vw, 106px); line-height: .92; letter-spacing: -.075em; font-weight: 650; }
-    h1 em { color: var(--acid); font-family: var(--serif); font-weight: 400; letter-spacing: -.06em; }
-    .hero-copy { max-width: 510px; color: var(--muted); font-size: 18px; }
+    h1 { max-width: 650px; margin: 22px 0 22px; font-size: clamp(54px, 8.2vw, 106px); line-height: .92; letter-spacing: -.075em; font-weight: 650; text-wrap: balance; }
+    h1 em, h2 em { color: var(--acid); font-family: var(--serif); font-weight: 400; font-style: italic; letter-spacing: -.06em; }
+    .hero-copy { max-width: 500px; color: var(--muted); font-size: 18px; text-wrap: pretty; }
     .hero-copy strong { color: var(--paper); font-weight: 500; }
     .actions { display: flex; flex-wrap: wrap; align-items: center; gap: 12px; margin-top: 32px; }
-    .button { display: inline-flex; align-items: center; justify-content: center; gap: 10px; min-height: 47px; padding: 0 19px; border-radius: 6px; border: 1px solid transparent; font-size: 14px; font-weight: 650; transition: transform .2s ease, background .2s ease, color .2s ease; }
+    .button { display: inline-flex; align-items: center; justify-content: center; gap: 10px; min-height: 47px; padding: 0 19px; border-radius: 6px; border: 1px solid transparent; font-size: 14px; font-weight: 650; transition: transform .2s var(--ease), background .2s, color .2s, border-color .2s; }
+    .button span { display: inline-block; transition: transform .2s var(--ease); }
     .button:hover { transform: translateY(-2px); }
+    .button:hover span { transform: translateX(3px); }
     .button-primary { color: var(--ink); background: var(--acid); }
     .button-primary:hover { background: #e5ff91; }
+    .button-primary:hover span { transform: translateY(2px); }
     .button-ghost { border-color: var(--line); color: var(--paper); }
     .button-ghost:hover { border-color: var(--paper); background: rgba(241, 240, 232, .08); }
-    .release-note { margin-top: 14px; color: #79877f; font-family: var(--mono); font-size: 11px; }
-    .terminal { position: relative; padding: 14px; border: 1px solid rgba(117, 231, 209, .3); background: linear-gradient(135deg, rgba(117, 231, 209, .08), rgba(216, 255, 98, .04)); box-shadow: 0 35px 100px rgba(0,0,0,.35); transform: rotate(2deg); }
-    .terminal::before { content: ""; position: absolute; inset: 12px -12px -12px 12px; z-index: -1; border: 1px solid rgba(216, 255, 98, .18); }
-    .terminal-top { display: flex; justify-content: space-between; padding: 6px 5px 13px; color: #71847d; font-family: var(--mono); font-size: 10px; }
-    .traffic { display: flex; gap: 5px; }
-    .traffic i { width: 7px; height: 7px; border-radius: 50%; background: #ff6c60; }
-    .traffic i:nth-child(2) { background: #ffbd44; }
-    .traffic i:nth-child(3) { background: #00ca4e; }
-    .transcript { min-height: 298px; padding: 25px 24px 21px; background: var(--panel); font-family: var(--mono); }
-    .recording { display: flex; align-items: center; gap: 9px; color: var(--acid); font-size: 11px; letter-spacing: .08em; }
-    .pulse { width: 8px; height: 8px; border-radius: 50%; background: var(--acid); box-shadow: 0 0 0 0 rgba(216,255,98,.6); animation: pulse 1.5s infinite; }
-    @keyframes pulse { 70% { box-shadow: 0 0 0 8px rgba(216,255,98,0); } 100% { box-shadow: 0 0 0 0 rgba(216,255,98,0); } }
-    .wave { display: flex; align-items: center; gap: 3px; height: 43px; margin: 20px 0 22px; }
-    .wave i { width: 3px; height: calc(11px + var(--h) * 1px); background: var(--cyan); opacity: .8; animation: wave 1.2s ease-in-out infinite alternate; animation-delay: calc(var(--i) * -80ms); }
-    @keyframes wave { to { height: calc(17px + var(--h) * 1.4px); opacity: 1; } }
-    .quote { margin: 0; color: var(--paper); font-family: var(--serif); font-size: clamp(23px, 3vw, 31px); line-height: 1.12; letter-spacing: -.03em; }
-    .quote mark { color: var(--acid); background: transparent; }
-    .terminal-bottom { display: flex; justify-content: space-between; align-items: center; padding: 15px 3px 2px; color: #708179; font-size: 10px; }
-    .meter { display: flex; gap: 3px; }
-    .meter i { width: 12px; height: 4px; background: var(--acid); }
-    .meter i:nth-child(n+5) { opacity: .22; }
-    .ticker { border-block: 1px solid var(--line); overflow: hidden; white-space: nowrap; color: #7e8c85; font-family: var(--mono); font-size: 11px; letter-spacing: .1em; }
-    .ticker-track { display: inline-flex; gap: 34px; padding: 15px 0; animation: ticker 28s linear infinite; }
-    @keyframes ticker { to { transform: translateX(-40%); } }
+    .release-note { display: flex; flex-wrap: wrap; gap: 6px 0; margin-top: 16px; color: var(--dim); font-family: var(--mono); font-size: 11px; letter-spacing: .04em; }
+    .release-note span + span::before { content: "·"; margin: 0 9px; color: rgba(118, 133, 124, .6); }
+    .release-note a { text-decoration: underline; text-underline-offset: 3px; text-decoration-color: rgba(118, 133, 124, .5); }
+    .release-note a:hover { color: var(--paper); }
+
+    /* Hero demo: a real-looking target window with dictated text landing at the caret. */
+    .demo { position: relative; }
+    .window { position: relative; border: 1px solid var(--line); background: var(--panel); box-shadow: 0 40px 100px rgba(0, 0, 0, .45), 0 0 0 1px rgba(0, 0, 0, .3); }
+    .window::before { content: ""; position: absolute; inset: 14px -14px -14px 14px; z-index: -1; border: 1px solid rgba(216, 255, 98, .16); }
+    .window-bar { display: flex; align-items: center; gap: 12px; padding: 11px 14px; border-bottom: 1px solid var(--line-soft); color: var(--dim); font-family: var(--mono); font-size: 10.5px; letter-spacing: .04em; }
+    .window-bar .title { flex: 1; text-align: center; padding-right: 36px; }
+    .traffic { display: flex; gap: 6px; }
+    .traffic i { width: 9px; height: 9px; border-radius: 50%; background: #ff5f57; }
+    .traffic i:nth-child(2) { background: #febc2e; }
+    .traffic i:nth-child(3) { background: #28c840; }
+    .doc { padding: 24px 26px 30px; font-family: var(--mono); font-size: 13px; line-height: 1.75; color: var(--muted); }
+    .doc .h { color: var(--paper); font-weight: 600; }
+    .doc .line { display: block; }
+    .doc .dictated { color: var(--paper); background: linear-gradient(90deg, rgba(216, 255, 98, .18), rgba(216, 255, 98, .05)); box-shadow: inset 0 -1px 0 rgba(216, 255, 98, .55); box-decoration-break: clone; -webkit-box-decoration-break: clone; padding: 1px 2px 2px; }
+    .caret { display: inline-block; width: 2px; height: 1em; margin-left: 1px; vertical-align: -3px; background: var(--acid); animation: blink 1.05s steps(1) infinite; }
+    @keyframes blink { 50% { opacity: 0; } }
+    .doc-foot { display: flex; justify-content: space-between; gap: 12px; margin-top: 22px; padding-top: 12px; border-top: 1px dashed var(--line-soft); color: var(--dim); font-size: 10px; letter-spacing: .08em; text-transform: uppercase; }
+    /* The overlay pill the app actually shows while recording. */
+    .overlay { position: absolute; right: -18px; bottom: -26px; display: flex; align-items: center; gap: 12px; padding: 10px 14px 10px 12px; border: 1px solid rgba(117, 231, 209, .35); border-radius: 999px; background: rgba(16, 24, 23, .92); backdrop-filter: blur(14px); -webkit-backdrop-filter: blur(14px); box-shadow: 0 20px 50px rgba(0, 0, 0, .5); font-family: var(--mono); font-size: 11px; letter-spacing: .06em; color: var(--paper); }
+    .overlay .pulse { width: 8px; height: 8px; border-radius: 50%; background: var(--acid); box-shadow: 0 0 0 0 rgba(216, 255, 98, .6); animation: pulse 1.5s infinite; }
+    @keyframes pulse { 70% { box-shadow: 0 0 0 8px rgba(216, 255, 98, 0); } 100% { box-shadow: 0 0 0 0 rgba(216, 255, 98, 0); } }
+    .wave { display: flex; align-items: center; gap: 2px; height: 18px; }
+    .wave i { width: 2px; height: calc(4px + var(--h) * .6px); border-radius: 1px; background: var(--cyan); opacity: .85; animation: wave 1.1s ease-in-out infinite alternate; animation-delay: calc(var(--i) * -90ms); }
+    @keyframes wave { to { height: calc(6px + var(--h) * .9px); opacity: 1; } }
+    .overlay .hint { color: var(--dim); }
+
+    /* Ticker: two identical groups, track slides exactly one group width so the loop is seamless. */
+    .ticker { border-block: 1px solid var(--line); overflow: hidden; white-space: nowrap; color: #7e8c85; font-family: var(--mono); font-size: 11px; letter-spacing: .1em; mask-image: linear-gradient(90deg, transparent, #000 8%, #000 92%, transparent); -webkit-mask-image: linear-gradient(90deg, transparent, #000 8%, #000 92%, transparent); }
+    .ticker-track { display: inline-flex; padding: 15px 0; animation: ticker 36s linear infinite; }
+    .ticker:hover .ticker-track { animation-play-state: paused; }
+    .ticker-group { display: inline-flex; gap: 40px; padding-right: 40px; }
+    .ticker-group b { color: var(--acid); font-weight: 500; }
+    @keyframes ticker { to { transform: translateX(-50%); } }
+
+    /* Sections */
     .section { padding: 112px 0; border-bottom: 1px solid var(--line); }
     .section-head { display: grid; grid-template-columns: .8fr 1.2fr; gap: 36px; margin-bottom: 50px; }
     .section-kicker { color: var(--cyan); font-family: var(--mono); font-size: 11px; letter-spacing: .13em; text-transform: uppercase; }
-    h2 { margin: 0; max-width: 700px; font-size: clamp(35px, 5vw, 64px); line-height: .98; letter-spacing: -.06em; font-weight: 600; }
-    h2 em { color: var(--acid); font-family: var(--serif); font-weight: 400; }
-    .section-intro { margin: 2px 0 0; color: var(--muted); font-size: 16px; }
+    h2 { margin: 0; max-width: 700px; font-size: clamp(35px, 5vw, 64px); line-height: .98; letter-spacing: -.06em; font-weight: 600; text-wrap: balance; }
+    .section-intro { max-width: 560px; margin: 14px 0 0; color: var(--muted); font-size: 16px; text-wrap: pretty; }
+
     .feature-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 1px; border: 1px solid var(--line); background: var(--line); }
-    .feature { min-height: 240px; padding: 26px; background: var(--ink-soft); }
-    .feature-number { color: var(--orange); font-family: var(--mono); font-size: 11px; }
-    .feature h3 { margin: 52px 0 10px; font-size: 22px; letter-spacing: -.03em; font-weight: 560; }
+    .feature { display: flex; flex-direction: column; min-height: 280px; padding: 24px 26px 26px; background: var(--ink-soft); transition: background .25s var(--ease); }
+    .feature:hover { background: var(--panel-hi); }
+    .feature-number { color: var(--orange); font-family: var(--mono); font-size: 11px; letter-spacing: .06em; }
+    .feature-spec { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin: 34px 0 0; color: var(--dim); font-family: var(--mono); font-size: 11px; }
+    .feature-spec .arrow { color: var(--cyan); }
+    .feature h3 { margin: auto 0 10px; padding-top: 28px; font-size: 22px; letter-spacing: -.03em; font-weight: 560; }
     .feature p { margin: 0; color: var(--muted); font-size: 14px; }
+    .feature p a { color: var(--paper); text-decoration: underline; text-underline-offset: 3px; text-decoration-color: var(--line); }
+    .feature p a:hover { text-decoration-color: var(--acid); }
+
     .targets { display: grid; grid-template-columns: 1.2fr .8fr; gap: 1px; background: var(--line); border: 1px solid var(--line); }
     .target-main, .target-side { padding: 28px; background: var(--panel); }
     .target-main { min-height: 310px; }
     .target-side { display: grid; align-content: space-between; gap: 28px; background: var(--ink-soft); }
-    .target-label { color: var(--cyan); font-family: var(--mono); font-size: 11px; }
-    .target-main h3 { max-width: 560px; margin: 64px 0 15px; font-size: clamp(28px, 4vw, 48px); line-height: 1; letter-spacing: -.06em; }
+    .target-label { color: var(--cyan); font-family: var(--mono); font-size: 11px; letter-spacing: .06em; }
+    .target-main h3 { max-width: 560px; margin: 64px 0 15px; font-size: clamp(28px, 4vw, 48px); line-height: 1; letter-spacing: -.06em; text-wrap: balance; }
     .target-main p, .target-side p { margin: 0; color: var(--muted); font-size: 14px; }
+    .target-side p { margin-top: 8px; }
     .app-row { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 30px; }
-    .app-pill { padding: 8px 10px; border: 1px solid var(--line); color: var(--paper); font-family: var(--mono); font-size: 11px; }
+    .app-pill { padding: 8px 10px; border: 1px solid var(--line); color: var(--paper); font-family: var(--mono); font-size: 11px; transition: border-color .2s; }
+    .app-pill:hover { border-color: var(--cyan); }
+    .app-pill.more { color: var(--dim); border-style: dashed; }
+
     .privacy { display: grid; grid-template-columns: .85fr 1.15fr; gap: 80px; align-items: start; }
-    .privacy-copy { color: var(--muted); font-size: 16px; }
+    .privacy h2 { margin-top: 24px; }
+    .privacy-copy { color: var(--muted); font-size: 16px; text-wrap: pretty; }
     .privacy-copy p { margin: 0 0 16px; }
+    .privacy-copy a { color: var(--acid); text-decoration: underline; text-underline-offset: 4px; text-decoration-color: rgba(216, 255, 98, .4); }
+    .privacy-copy a:hover { text-decoration-color: var(--acid); }
     .privacy-list { display: grid; grid-template-columns: repeat(2, 1fr); gap: 1px; background: var(--line); border: 1px solid var(--line); }
     .privacy-item { min-height: 130px; padding: 20px; background: var(--ink-soft); }
     .privacy-item strong { display: block; margin-bottom: 8px; color: var(--paper); font-size: 14px; }
     .privacy-item span { color: var(--muted); font-size: 13px; }
+
     .install { display: grid; grid-template-columns: repeat(3, 1fr); gap: 1px; background: var(--line); border: 1px solid var(--line); counter-reset: step; }
-    .step { min-height: 190px; padding: 25px; background: var(--ink-soft); }
+    .step { display: flex; flex-direction: column; min-height: 210px; padding: 25px; background: var(--ink-soft); }
     .step::before { counter-increment: step; content: "0" counter(step); color: var(--acid); font-family: var(--mono); font-size: 12px; }
-    .step h3 { margin: 45px 0 8px; font-size: 19px; }
+    .step h3 { margin: auto 0 8px; padding-top: 40px; font-size: 19px; letter-spacing: -.02em; }
     .step p { margin: 0; color: var(--muted); font-size: 13px; }
+    .step p kbd { margin: 0 2px; vertical-align: 1px; }
+
     .closing { padding: 116px 0 128px; text-align: center; }
-    .closing h2 { margin: 0 auto; max-width: 800px; }
-    .closing p { max-width: 480px; margin: 24px auto 0; color: var(--muted); }
+    .closing h2 { margin: 0 auto; max-width: 820px; }
+    .closing p { max-width: 480px; margin: 24px auto 0; color: var(--muted); text-wrap: pretty; }
     .closing .actions { justify-content: center; }
-    footer { padding: 25px 0 34px; color: #76857c; font-family: var(--mono); font-size: 11px; }
+    footer { padding: 25px 0 34px; color: var(--dim); font-family: var(--mono); font-size: 11px; }
     .footer-inner { display: flex; justify-content: space-between; gap: 20px; }
     .footer-links { display: flex; gap: 18px; }
     .footer-links a:hover { color: var(--paper); }
-    [data-lang="en"] { display: none; }
-    body.english [data-lang="zh"] { display: none; }
-    body.english [data-lang="en"] { display: initial; }
+
+    /* Scroll reveal: a short, once-only lift. Staggered inside grids through --d. */
+    .reveal { opacity: 0; transform: translateY(14px); transition: opacity .55s var(--ease), transform .55s var(--ease); transition-delay: var(--d, 0ms); }
+    .reveal.in { opacity: 1; transform: none; }
+    .no-js .reveal { opacity: 1; transform: none; }
+
+    @media (max-width: 960px) {
+      .hero-grid { grid-template-columns: 1fr; gap: 56px; }
+      .demo { max-width: 620px; margin: 0 auto; }
+    }
     @media (max-width: 820px) {
       .shell { width: min(var(--max), calc(100% - 32px)); }
+      .nav-links { gap: 18px; }
       .nav-links a:not(.download-link) { display: none; }
-      .hero { padding: 70px 0 72px; }
-      .hero-grid, .section-head, .privacy, .targets { grid-template-columns: 1fr; gap: 38px; }
-      .terminal { max-width: 600px; margin: 0 auto; transform: rotate(0); }
+      .hero { padding: 64px 0 80px; }
+      .section-head, .privacy, .targets { grid-template-columns: 1fr; gap: 38px; }
+      .privacy { gap: 40px; }
+      .window::before { display: none; }
+      .overlay { right: 10px; bottom: -22px; }
       .section { padding: 78px 0; }
       .feature-grid, .install { grid-template-columns: 1fr; }
-      .feature { min-height: 185px; }
-      .feature h3 { margin-top: 35px; }
+      .feature { min-height: 0; }
+      .feature h3 { padding-top: 26px; }
+      .step { min-height: 0; }
+      .step h3 { padding-top: 24px; }
       .privacy-list { grid-template-columns: 1fr; }
-      .target-main { min-height: 245px; }
-      .target-main h3 { margin-top: 45px; }
+      .target-main { min-height: 0; }
+      .target-main h3 { margin-top: 40px; }
       .footer-inner { flex-direction: column; }
     }
+    @media (max-width: 480px) {
+      .doc { padding: 18px 16px 22px; font-size: 12px; }
+      .overlay .hint { display: none; }
+    }
     @media (prefers-reduced-motion: reduce) {
-      *, *::before, *::after { animation-duration: .001ms !important; animation-iteration-count: 1 !important; scroll-behavior: auto !important; }
+      html { scroll-behavior: auto; }
+      *, *::before, *::after { animation-duration: .001ms !important; animation-iteration-count: 1 !important; transition-duration: .001ms !important; }
+      .reveal { opacity: 1; transform: none; }
+      .ticker { white-space: normal; }
+      .ticker-track { animation: none; display: block; }
+      .ticker-group:not(:first-child) { display: none; }
+      .ticker-group { flex-wrap: wrap; gap: 10px 28px; padding: 0 24px; justify-content: center; }
     }
   </style>
 </head>
-<body>
-  <header class="nav">
+<body class="no-js">
+  <script>document.body.classList.remove('no-js');</script>
+  <header class="nav" id="nav">
     <div class="shell nav-inner">
-      <a class="brand" href="#top" aria-label="OpenTypeless home"><span class="brand-mark">OT</span><span>OPEN TYPELESS</span></a>
+      <a class="brand" href="#top" aria-label="OpenTypeless home"><span class="brand-mark">OT</span><span>OPENTYPELESS</span></a>
       <nav class="nav-links" aria-label="Primary navigation">
-        <a href="#features"><span data-lang="zh">能力</span><span data-lang="en">Features</span></a>
-        <a href="#privacy"><span data-lang="zh">隐私</span><span data-lang="en">Privacy</span></a>
+        <a href="#features">Features</a>
+        <a href="#privacy">Privacy</a>
+        <a href="#install">Install</a>
         <a href="https://github.com/ryrenz/open-typeless-formac" target="_blank" rel="noreferrer">GitHub ↗</a>
-        <a class="lang" href="#" id="lang-toggle" role="button" aria-label="Switch language">中 / EN</a>
+        <a class="download-link" href="https://github.com/ryrenz/open-typeless-formac/releases/latest/download/OpenTypeless.dmg">Download</a>
       </nav>
     </div>
   </header>
@@ -159,75 +236,112 @@
     <section class="hero">
       <div class="shell hero-grid">
         <div>
-          <div class="eyebrow"><span data-lang="zh">开源 macOS 语音输入</span><span data-lang="en">OPEN SOURCE MACOS DICTATION</span></div>
-          <h1><span data-lang="zh">说出来，<em>直接写进去。</em></span><span data-lang="en">Speak. <em>It goes where you type.</em></span></h1>
-          <p class="hero-copy"><span data-lang="zh"><strong>OpenTypeless</strong> 把你的声音变成文字，然后送进当前光标所在的输入框。没有账号，没有订阅，API key 和历史记录留在你的 Mac。</span><span data-lang="en"><strong>OpenTypeless</strong> turns your voice into text and sends it to the field under your cursor. No account, no subscription, and your API key stays on your Mac.</span></p>
+          <div class="eyebrow">Open-source macOS dictation</div>
+          <h1>Speak. <em>It goes where you type.</em></h1>
+          <p class="hero-copy"><strong>OpenTypeless</strong> is a small menu bar app. Press a key, talk, press it again. The words show up in whichever field has focus, in whichever app you're already in. Bring your own API key; nothing passes through a server of ours.</p>
           <div class="actions">
-            <a class="button button-primary" href="https://github.com/ryrenz/open-typeless-formac/releases/latest/download/OpenTypeless.dmg"><span data-lang="zh">下载 macOS 版</span><span data-lang="en">Download for macOS</span><span aria-hidden="true">↓</span></a>
-            <a class="button button-ghost" href="https://github.com/ryrenz/open-typeless-formac" target="_blank" rel="noreferrer"><span data-lang="zh">查看源代码</span><span data-lang="en">View source</span><span aria-hidden="true">↗</span></a>
+            <a class="button button-primary" href="https://github.com/ryrenz/open-typeless-formac/releases/latest/download/OpenTypeless.dmg">Download for macOS<span aria-hidden="true">↓</span></a>
+            <a class="button button-ghost" href="https://github.com/ryrenz/open-typeless-formac" target="_blank" rel="noreferrer">View source<span aria-hidden="true">↗</span></a>
           </div>
-          <div class="release-note">v1.0.1 · UNIVERSAL · SIGNED &amp; NOTARIZED · macOS 14+</div>
+          <div class="release-note"><span><a href="https://github.com/ryrenz/open-typeless-formac/releases/latest" target="_blank" rel="noreferrer">v1.0.1</a></span><span>macOS 14+</span><span>Apple silicon &amp; Intel</span><span>Signed &amp; notarized</span><span>MIT</span></div>
         </div>
-        <div class="terminal" aria-label="OpenTypeless transcription preview">
-          <div class="terminal-top"><span class="traffic"><i></i><i></i><i></i></span><span>open-typeless / live</span></div>
-          <div class="transcript">
-            <div class="recording"><span class="pulse"></span><span data-lang="zh">正在听写</span><span data-lang="en">LISTENING</span></div>
-            <div class="wave" aria-hidden="true">
-              <i style="--h: 7; --i: 1"></i><i style="--h: 15; --i: 2"></i><i style="--h: 23; --i: 3"></i><i style="--h: 11; --i: 4"></i><i style="--h: 29; --i: 5"></i><i style="--h: 18; --i: 6"></i><i style="--h: 34; --i: 7"></i><i style="--h: 14; --i: 8"></i><i style="--h: 25; --i: 9"></i><i style="--h: 8; --i: 10"></i><i style="--h: 19; --i: 11"></i><i style="--h: 30; --i: 12"></i><i style="--h: 15; --i: 13"></i><i style="--h: 24; --i: 14"></i><i style="--h: 10; --i: 15"></i><i style="--h: 17; --i: 16"></i><i style="--h: 27; --i: 17"></i><i style="--h: 12; --i: 18"></i><i style="--h: 20; --i: 19"></i><i style="--h: 8; --i: 20"></i>
+
+        <div class="demo" aria-label="What dictation looks like: text inserted at the cursor in a notes file while the recording overlay is visible">
+          <div class="window">
+            <div class="window-bar"><span class="traffic"><i></i><i></i><i></i></span><span class="title">standup.md — ~/notes</span></div>
+            <div class="doc">
+              <span class="line h">## Tue</span>
+              <span class="line">- Shipped the notarization fix for the DMG</span>
+              <span class="line">- Reviewed the hotkey PR, left two comments</span>
+              <span class="line">- <span class="dictated">Today I'm on the paste fallback for Terminal, then the CJK spacing bug in the formatter if there's time.</span><span class="caret" aria-hidden="true"></span></span>
+              <div class="doc-foot"><span>Inserted via Accessibility</span><span>Clipboard untouched</span></div>
             </div>
-            <p class="quote"><span data-lang="zh">“把想法说出来，<mark>文字自然出现。</mark>”</span><span data-lang="en">“Say what you mean. <mark>Watch it appear.</mark>”</span></p>
-            <div class="terminal-bottom"><span>gpt-4o-mini-transcribe</span><span class="meter"><i></i><i></i><i></i><i></i><i></i><i></i><i></i></span></div>
+          </div>
+          <div class="overlay" aria-hidden="true">
+            <span class="pulse"></span>
+            <span class="wave"><i style="--h: 7; --i: 1"></i><i style="--h: 14; --i: 2"></i><i style="--h: 10; --i: 3"></i><i style="--h: 16; --i: 4"></i><i style="--h: 8; --i: 5"></i><i style="--h: 13; --i: 6"></i><i style="--h: 5; --i: 7"></i><i style="--h: 11; --i: 8"></i><i style="--h: 15; --i: 9"></i><i style="--h: 6; --i: 10"></i></span>
+            <span>00:06</span>
+            <span class="hint">right ⌥ to stop</span>
           </div>
         </div>
       </div>
     </section>
 
-    <div class="ticker" aria-hidden="true"><div class="ticker-track"><span>PRESS ONCE · SPEAK · PRESS AGAIN · TEXT APPEARS</span><span>开源 · 私密 · 可控</span><span>PRESS ONCE · SPEAK · PRESS AGAIN · TEXT APPEARS</span><span>开源 · 私密 · 可控</span></div></div>
+    <div class="ticker" aria-hidden="true"><div class="ticker-track">
+      <div class="ticker-group"><span>PRESS <b>⌥</b> · TALK · PRESS <b>⌥</b> AGAIN</span><span>TEXT LANDS AT THE CURSOR</span><span>NO ACCOUNT</span><span>NO SERVER IN THE MIDDLE</span><span>OPENAI · GROQ · MISTRAL · YOUR OWN ENDPOINT</span><span>MIT LICENSED</span></div>
+      <div class="ticker-group"><span>PRESS <b>⌥</b> · TALK · PRESS <b>⌥</b> AGAIN</span><span>TEXT LANDS AT THE CURSOR</span><span>NO ACCOUNT</span><span>NO SERVER IN THE MIDDLE</span><span>OPENAI · GROQ · MISTRAL · YOUR OWN ENDPOINT</span><span>MIT LICENSED</span></div>
+      <div class="ticker-group"><span>PRESS <b>⌥</b> · TALK · PRESS <b>⌥</b> AGAIN</span><span>TEXT LANDS AT THE CURSOR</span><span>NO ACCOUNT</span><span>NO SERVER IN THE MIDDLE</span><span>OPENAI · GROQ · MISTRAL · YOUR OWN ENDPOINT</span><span>MIT LICENSED</span></div>
+      <div class="ticker-group"><span>PRESS <b>⌥</b> · TALK · PRESS <b>⌥</b> AGAIN</span><span>TEXT LANDS AT THE CURSOR</span><span>NO ACCOUNT</span><span>NO SERVER IN THE MIDDLE</span><span>OPENAI · GROQ · MISTRAL · YOUR OWN ENDPOINT</span><span>MIT LICENSED</span></div>
+      <div class="ticker-group"><span>PRESS <b>⌥</b> · TALK · PRESS <b>⌥</b> AGAIN</span><span>TEXT LANDS AT THE CURSOR</span><span>NO ACCOUNT</span><span>NO SERVER IN THE MIDDLE</span><span>OPENAI · GROQ · MISTRAL · YOUR OWN ENDPOINT</span><span>MIT LICENSED</span></div>
+      <div class="ticker-group"><span>PRESS <b>⌥</b> · TALK · PRESS <b>⌥</b> AGAIN</span><span>TEXT LANDS AT THE CURSOR</span><span>NO ACCOUNT</span><span>NO SERVER IN THE MIDDLE</span><span>OPENAI · GROQ · MISTRAL · YOUR OWN ENDPOINT</span><span>MIT LICENSED</span></div>
+    </div></div>
 
     <section class="section" id="features">
       <div class="shell">
-        <div class="section-head"><div class="section-kicker">01 / The useful part</div><div><h2><span data-lang="zh">不是一个录音机，<em>是一个输入层。</em></span><span data-lang="en">Not a recorder. <em>An input layer.</em></span></h2><p class="section-intro"><span data-lang="zh">按一下开始，再按一下停止。OpenTypeless 负责剩下的事情：转录、格式化、插入。</span><span data-lang="en">Press once to start, once to stop. OpenTypeless handles the rest: transcribe, format, insert.</span></p></div></div>
+        <div class="section-head reveal"><div class="section-kicker">01 / How it works</div><div><h2>Press once. Talk. <em>Press again.</em></h2><p class="section-intro">There is no window to manage. One key starts the recording, the same key ends it, and the transcript is typed into whatever you were looking at.</p></div></div>
         <div class="feature-grid">
-          <article class="feature"><div class="feature-number">01 — TOGGLE TO TALK</div><h3><span data-lang="zh">说话，不用盯着窗口</span><span data-lang="en">Talk without watching a window</span></h3><p><span data-lang="zh">全局快捷键从菜单栏启动。录音状态和音量在屏幕底部轻量提示。</span><span data-lang="en">Start from anywhere with a global shortcut. A small overlay shows state and audio level.</span></p></article>
-          <article class="feature"><div class="feature-number">02 — SMART INSERTION</div><h3><span data-lang="zh">文字回到你正在写的地方</span><span data-lang="en">Text returns to where you write</span></h3><p><span data-lang="zh">优先使用 Accessibility 插入；对 Terminal、cmux 等目标使用受保护的粘贴回退。</span><span data-lang="en">Accessibility insertion first, with a guarded paste fallback for Terminal, cmux, and friends.</span></p></article>
-          <article class="feature"><div class="feature-number">03 — YOUR PROVIDER</div><h3><span data-lang="zh">选择模型，也选择边界</span><span data-lang="en">Choose the model and the boundary</span></h3><p><span data-lang="zh">内置 OpenAI、Groq、Mistral，也支持 OpenAI-compatible endpoint。更换目的地时，应用会重新请求明确同意。</span><span data-lang="en">Choose OpenAI, Groq, Mistral, or any OpenAI-compatible endpoint. Changing the destination asks for consent again.</span></p></article>
+          <article class="feature reveal" style="--d: 0ms"><div class="feature-number">01 — THE KEY</div><div class="feature-spec"><kbd>right ⌥</kbd><span>start</span><span class="arrow">→</span><kbd>right ⌥</kbd><span>stop</span></div><h3>A key you never use anyway</h3><p>Right Option toggles recording by default, with a small overlay for state and level. Double-press to cancel. Any other hotkey works too.</p></article>
+          <article class="feature reveal" style="--d: 70ms"><div class="feature-number">02 — INSERTION</div><div class="feature-spec"><span>Accessibility API</span><span class="arrow">→</span><span>guarded paste</span></div><h3>Typed, not pasted</h3><p>Text goes in through the Accessibility API, so your clipboard is left alone. Apps that don't allow it — Terminal, cmux, a few others — get a paste that restores your clipboard afterwards.</p></article>
+          <article class="feature reveal" style="--d: 140ms"><div class="feature-number">03 — THE MODEL</div><div class="feature-spec"><span>OpenAI</span><span>·</span><span>Groq</span><span>·</span><span>Mistral</span><span>·</span><span>custom URL</span></div><h3>Your key, your bill</h3><p>Pick a provider and model in Settings; Groq's <code>whisper-large-v3</code> is a good free-tier start. Point it at any OpenAI-compatible endpoint if you run your own.</p></article>
         </div>
       </div>
     </section>
 
     <section class="section">
       <div class="shell">
-        <div class="section-head"><div class="section-kicker">02 / Anywhere you type</div><div><h2><span data-lang="zh">浏览器、Terminal、<em>cmux。</em></span><span data-lang="en">Browser, Terminal, <em>cmux.</em></span></h2><p class="section-intro"><span data-lang="zh">它不要求你换工作流。光标在哪，文字就去哪。</span><span data-lang="en">Keep your workflow. Wherever the cursor is, that is where the text goes.</span></p></div></div>
-        <div class="targets"><div class="target-main"><div class="target-label">ACTIVE TARGET / 03</div><h3><span data-lang="zh">当前输入框，<br>就是你的画布。</span><span data-lang="en">The active field<br>is your canvas.</span></h3><p><span data-lang="zh">邮件、编辑器、Issue、命令行——不需要复制粘贴来回切换。</span><span data-lang="en">Email, editor, issue tracker, command line — no context switching just to paste.</span></p><div class="app-row"><span class="app-pill">Safari</span><span class="app-pill">Xcode</span><span class="app-pill">Terminal</span><span class="app-pill">cmux</span><span class="app-pill">+ anything</span></div></div><div class="target-side"><div><div class="target-label">RECOVERY BY DESIGN</div><p><span data-lang="zh">网络失败时，原始录音会保留在本机。你可以稍后重试或永久删除。</span><span data-lang="en">If the network fails, the original recording stays local. Retry later or delete it permanently.</span></p></div><div><div class="target-label">FORMAT THAT READS WELL</div><p><span data-lang="zh">中文标点、英文标点、CJK 间距和自然段落由格式化器统一处理。</span><span data-lang="en">Punctuation, CJK spacing, and natural paragraphs are cleaned up by the formatter.</span></p></div></div></div>
+        <div class="section-head reveal"><div class="section-kicker">02 / Targets</div><div><h2>Browser, editor, Terminal, <em>cmux.</em></h2><p class="section-intro">It doesn't care which app is in front. Wherever the caret is blinking, that's where the words go.</p></div></div>
+        <div class="targets">
+          <div class="target-main reveal"><div class="target-label">ACTIVE TARGET</div><h3>Whatever has focus gets the text.</h3><p>A reply in Mail, a commit message in Xcode, a comment on a GitHub issue, a shell prompt. You don't switch anywhere and you don't paste anything.</p><div class="app-row"><span class="app-pill">Safari</span><span class="app-pill">Mail</span><span class="app-pill">Xcode</span><span class="app-pill">Terminal</span><span class="app-pill">cmux</span><span class="app-pill">Slack</span><span class="app-pill more">anything with a text field</span></div></div>
+          <div class="target-side reveal" style="--d: 90ms"><div><div class="target-label">IF THE NETWORK DROPS</div><p>The recording is kept on disk and shows up under Pending. Retry it when you're back online, or delete it for good.</p></div><div><div class="target-label">FORMATTING</div><p>Punctuation, paragraph breaks, and spacing between CJK and Latin text are tidied before insertion. Add names and jargon to a personal dictionary so they come out spelled right.</p></div></div>
+        </div>
       </div>
     </section>
 
     <section class="section" id="privacy">
-      <div class="shell privacy"><div><div class="section-kicker">03 / Privacy by default</div><h2 style="margin-top: 24px"><span data-lang="zh">你的声音，<em>不经过我们。</em></span><span data-lang="en">Your voice, <em>not through us.</em></span></h2></div><div><div class="privacy-copy"><p><span data-lang="zh">OpenTypeless 没有账号、广告、追踪或开发者运营的服务器。你选择的 provider 由应用直接调用，只有在你阅读并同意数据处理说明后才会发送。</span><span data-lang="en">OpenTypeless has no accounts, ads, tracking, or developer-operated servers. The provider you choose is called directly from the app, only after you review and accept the data-processing disclosure.</span></p><p><a href="privacy.html" style="color: var(--acid); text-decoration: underline; text-underline-offset: 4px"><span data-lang="zh">阅读完整隐私政策 →</span><span data-lang="en">Read the full privacy policy →</span></a></p></div><div class="privacy-list"><div class="privacy-item"><strong>Keychain</strong><span data-lang="zh">API key 使用 macOS Data Protection Keychain 保存。</span><span data-lang="en">API keys use macOS Data Protection Keychain.</span></div><div class="privacy-item"><strong>Local only</strong><span data-lang="zh">历史记录和失败录音保存在你的 Mac，可随时删除。</span><span data-lang="en">History and failed recordings stay on your Mac and are deletable.</span></div><div class="privacy-item"><strong>Consent</strong><span data-lang="zh">每个 provider / endpoint 都有独立的数据处理同意。</span><span data-lang="en">Each provider or endpoint has its own processing consent.</span></div><div class="privacy-item"><strong>Open source</strong><span data-lang="zh">代码公开，行为可审计，欢迎提交 Issue。</span><span data-lang="en">The code is public, auditable, and open to issues.</span></div></div></div></div>
+      <div class="shell privacy">
+        <div class="reveal"><div class="section-kicker">03 / Privacy</div><h2>No server <em>in the middle.</em></h2></div>
+        <div class="reveal" style="--d: 90ms">
+          <div class="privacy-copy"><p>There's no account to make and no telemetry to opt out of. Audio goes straight from your Mac to the provider you picked, and only after you've read that provider's data-processing note and said yes. Switch providers or endpoints and it asks again.</p><p><a href="privacy.html">Read the full privacy policy →</a></p></div>
+          <div class="privacy-list"><div class="privacy-item"><strong>Keychain</strong><span>Your API key lives in the macOS Data Protection Keychain, not in a plist.</span></div><div class="privacy-item"><strong>Local only</strong><span>History and pending recordings stay on this Mac. Delete any or all of it from Settings.</span></div><div class="privacy-item"><strong>Per-destination consent</strong><span>Consent is stored per provider and per custom endpoint, never as one blanket switch.</span></div><div class="privacy-item"><strong>Readable source</strong><span>Every network call is in the repo. Read it, build it yourself, or send a fix.</span></div></div>
+        </div>
+      </div>
     </section>
 
-    <section class="section">
-      <div class="shell"><div class="section-head"><div class="section-kicker">04 / From download to dictation</div><div><h2><span data-lang="zh">三步，<em>开始说。</em></span><span data-lang="en">Three steps to <em>start speaking.</em></span></h2></div></div><div class="install"><article class="step"><h3><span data-lang="zh">下载并打开</span><span data-lang="en">Download and open</span></h3><p><span data-lang="zh">DMG 已签名并完成 Apple notarization。拖入 Applications 即可。</span><span data-lang="en">The DMG is signed and notarized by Apple. Drag it to Applications.</span></p></article><article class="step"><h3><span data-lang="zh">输入你的 API key</span><span data-lang="en">Add your API key</span></h3><p><span data-lang="zh">首次运行会引导你配置 provider、模型和数据处理同意。</span><span data-lang="en">First launch guides you through provider, model, and processing consent.</span></p></article><article class="step"><h3><span data-lang="zh">按键，开始写</span><span data-lang="en">Press and write</span></h3><p><span data-lang="zh">默认快捷键是 Right Option。按一下录音，再按一下插入文字。</span><span data-lang="en">The default shortcut is Right Option. Press once to record, again to insert.</span></p></article></div></div>
+    <section class="section" id="install">
+      <div class="shell">
+        <div class="section-head reveal"><div class="section-kicker">04 / Install</div><div><h2>Talking in about <em>a minute.</em></h2></div></div>
+        <div class="install">
+          <article class="step reveal" style="--d: 0ms"><h3>Open the DMG</h3><p>Signed and notarized by Apple, so it opens without any Gatekeeper workaround. Drag to Applications.</p></article>
+          <article class="step reveal" style="--d: 70ms"><h3>Paste an API key</h3><p>First launch walks you through provider, model, and the data-processing consent. Then it asks for Microphone and Accessibility.</p></article>
+          <article class="step reveal" style="--d: 140ms"><h3>Press <kbd>right ⌥</kbd> and talk</h3><p>Press once to start, again to stop. The text is in your document before you've reached for the mouse.</p></article>
+        </div>
+      </div>
     </section>
 
-    <section class="closing"><div class="shell"><h2><span data-lang="zh">把手从键盘上移开，<em>把想法留下。</em></span><span data-lang="en">Keep your hands on the keyboard. <em>Keep the thought.</em></span></h2><p><span data-lang="zh">一个小小的、开源的 macOS 语音输入层。</span><span data-lang="en">A small, open-source dictation layer for macOS.</span></p><div class="actions"><a class="button button-primary" href="https://github.com/ryrenz/open-typeless-formac/releases/latest/download/OpenTypeless.dmg"><span data-lang="zh">下载 OpenTypeless</span><span data-lang="en">Download OpenTypeless</span><span aria-hidden="true">↓</span></a><a class="button button-ghost" href="https://github.com/ryrenz/open-typeless-formac/issues" target="_blank" rel="noreferrer"><span data-lang="zh">反馈问题</span><span data-lang="en">Open an issue</span><span aria-hidden="true">↗</span></a></div></div></section>
+    <section class="closing"><div class="shell reveal"><h2>Type the short things. <em>Say the long ones.</em></h2><p>One DMG, MIT licensed, no email required.</p><div class="actions"><a class="button button-primary" href="https://github.com/ryrenz/open-typeless-formac/releases/latest/download/OpenTypeless.dmg">Download OpenTypeless<span aria-hidden="true">↓</span></a><a class="button button-ghost" href="https://github.com/ryrenz/open-typeless-formac/issues" target="_blank" rel="noreferrer">Open an issue<span aria-hidden="true">↗</span></a></div></div></section>
   </main>
 
-  <footer><div class="shell footer-inner"><span>© 2026 OpenTypeless · MIT License</span><div class="footer-links"><a href="privacy.html"><span data-lang="zh">隐私政策</span><span data-lang="en">Privacy</span></a><a href="https://github.com/ryrenz/open-typeless-formac" target="_blank" rel="noreferrer">GitHub ↗</a></div></div></footer>
+  <footer><div class="shell footer-inner"><span>© 2026 OpenTypeless · MIT License</span><div class="footer-links"><a href="privacy.html">Privacy</a><a href="https://github.com/ryrenz/open-typeless-formac/releases" target="_blank" rel="noreferrer">Releases</a><a href="https://github.com/ryrenz/open-typeless-formac" target="_blank" rel="noreferrer">GitHub ↗</a></div></div></footer>
+
   <script>
-    (() => {
-      const toggle = document.querySelector('#lang-toggle');
-      const saved = window.localStorage.getItem('opentypeless-language');
-      const setLanguage = (language) => {
-        document.body.classList.toggle('english', language === 'en');
-        document.documentElement.lang = language === 'en' ? 'en' : 'zh-CN';
-        window.localStorage.setItem('opentypeless-language', language);
-      };
-      setLanguage(saved === 'en' ? 'en' : 'zh');
-      toggle.addEventListener('click', (event) => {
-        event.preventDefault();
-        setLanguage(document.body.classList.contains('english') ? 'zh' : 'en');
-      });
+    (function () {
+      var nav = document.getElementById('nav');
+      var onScroll = function () { nav.classList.toggle('is-scrolled', window.scrollY > 24); };
+      onScroll();
+      window.addEventListener('scroll', onScroll, { passive: true });
+
+      var items = document.querySelectorAll('.reveal');
+      var reduce = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+      if (reduce || !('IntersectionObserver' in window)) {
+        items.forEach(function (el) { el.classList.add('in'); });
+        return;
+      }
+      var io = new IntersectionObserver(function (entries) {
+        entries.forEach(function (e) {
+          if (e.isIntersecting) { e.target.classList.add('in'); io.unobserve(e.target); }
+        });
+      }, { rootMargin: '0px 0px -10% 0px', threshold: .12 });
+      items.forEach(function (el) { io.observe(el); });
     })();
   </script>
 </body>
