@@ -9,7 +9,7 @@ final class ProviderConfigurationTests: XCTestCase {
         XCTAssertEqual(preset.displayName, "Groq")
         XCTAssertEqual(preset.defaultHost, "api.groq.com")
         XCTAssertEqual(preset.defaultBasePath, "/openai/v1")
-        XCTAssertEqual(preset.defaultModel, "whisper-large-v3-turbo")
+        XCTAssertEqual(preset.defaultModel, "whisper-large-v3")
         XCTAssertEqual(preset.formattingModel, "openai/gpt-oss-20b")
         XCTAssertEqual(
             preset.formattingTokenLimitPolicy,

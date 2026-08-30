@@ -16,13 +16,13 @@ Inspired by [Typeless](https://www.typeless.com/).
 - **Progress overlay**: A bottom-center overlay shows recording/transcribing status with audio level
 - **Double-tap cancel**: Quickly press the hotkey twice to cancel recording
 - **Multiple providers and models**: Built-in OpenAI, Groq, and Mistral presets, plus custom OpenAI-compatible endpoints; Groq audio requests remove the SDK's default `stream=false` field for incompatible endpoints
-- **Multilingual transcription**: Groq `whisper-large-v3-turbo` / `whisper-large-v3`, Mistral `voxtral-mini-latest`, and OpenAI transcription models
+- **Multilingual transcription**: Groq `whisper-large-v3` (recommended default) / `whisper-large-v3-turbo`, Mistral `voxtral-mini-latest`, and OpenAI transcription models
 - **Smart formatting**: Transcription output is automatically post-processed — Chinese punctuation for Chinese/mixed content, English punctuation for English-only, pangu-style spacing between CJK and Latin, natural paragraph breaks, and enumeration converted to numbered lists (1. 2. 3.)
 - **Dictionary**: Add proper nouns (product names, people, jargon) that are often misrecognized. Entries are sent as transcription hints where the selected provider supports that field, and silent hallucinations of dictionary terms are filtered out.
 - **History**: Browse, copy, delete individual entries, clear all entries, and choose a local retention policy.
 - **Failed recording recovery**: Network/API failures preserve the original recording locally; reveal or permanently delete individual/all recordings in Settings.
 - **Crash-safe private configuration**: The API key, Provider, endpoint, and model are committed atomically as one versioned macOS Keychain item in both development and release builds.
-- **Chinese/English UI**: Switch UI language in Settings
+- **English UI**: The app interface and bundled product content use English
 
 ## Quick Start
 
@@ -55,6 +55,8 @@ When the API configuration is incomplete, OpenTypeless opens the required setup 
 
 Get keys from [OpenAI](https://platform.openai.com/api-keys), [Groq](https://console.groq.com/keys), or [Mistral](https://console.mistral.ai/api-keys).
 
+**Groq recommendation:** New Groq configurations default to `whisper-large-v3` because it prioritizes multilingual accuracy. Groq's Free tier currently gives `whisper-large-v3` and `whisper-large-v3-turbo` the same limits — 20 requests/minute, 2,000 requests/day, 7,200 audio seconds/hour, and 28,800 audio seconds/day — so `large-v3` is the better default when accuracy matters. This is rate-limited free usage, not unlimited usage; check Groq's [current rate limits](https://console.groq.com/docs/rate-limits) before relying on a specific quota.
+
 The app never reads an API key from environment variables. Development builds follow the same App → Keychain path as release builds. An interrupted settings save can retain only the complete old snapshot or the complete new snapshot, never a mixed key/endpoint pair.
 
 If a saved configuration becomes unreadable or comes from a newer app version, the required setup screen fails closed and offers an explicit reset or replacement path instead of sending audio with fallback settings.
@@ -77,7 +79,7 @@ The transcribed text will be automatically inserted into whatever text field you
 
 ## Pricing Estimate
 
-OpenTypeless includes OpenAI, Groq, and Mistral transcription models. New users can choose Groq for the lowest transcription cost; upgrades do not overwrite an existing provider selection.
+OpenTypeless includes OpenAI, Groq, and Mistral transcription models. New users can choose Groq `whisper-large-v3` as the recommended free-tier default; `whisper-large-v3-turbo` remains available when faster responses or lower paid usage cost matter. Upgrades do not overwrite an existing provider selection.
 
 | Usage | Cost (USD) | Cost (CNY) |
 |-------|-----------|------------|
@@ -93,11 +95,11 @@ OpenTypeless includes OpenAI, Groq, and Mistral transcription models. New users 
 | gpt-4o-mini-transcribe | $0.003 | Great (OpenAI default) |
 | gpt-4o-transcribe | $0.006 | Best |
 | whisper-1 | $0.006 | Good |
-| Groq whisper-large-v3-turbo | ~$0.0007 | Very fast, multilingual |
-| Groq whisper-large-v3 | ~$0.0019 | Multilingual, accuracy first |
+| Groq whisper-large-v3 | ~$0.0019 | Recommended default, multilingual, accuracy first |
+| Groq whisper-large-v3-turbo | ~$0.0007 | Faster and cheaper on paid usage |
 | Mistral voxtral-mini-latest | $0.003 | Multilingual |
 
-Groq Turbo is about 22% of the `gpt-4o-mini-transcribe` transcription price, at roughly $0.04/hour. Mistral and OpenAI mini are currently both about $0.003/minute. Prices change; see the [Groq model prices](https://console.groq.com/docs/models), [Mistral API pricing](https://mistral.ai/pricing/api/), and [OpenAI API pricing](https://platform.openai.com/pricing). Groq bills a minimum of 10 seconds per request.
+Groq `whisper-large-v3` is optimized for accuracy, while Turbo is roughly 2.8x cheaper on paid usage at about $0.04/hour and is optimized for speed. Mistral and OpenAI mini are currently both about $0.003/minute. Prices and free-tier limits change; see Groq's [speech-to-text guidance](https://console.groq.com/docs/speech-to-text), [model prices](https://console.groq.com/docs/models), and [rate limits](https://console.groq.com/docs/rate-limits), plus [Mistral API pricing](https://mistral.ai/pricing/api/) and [OpenAI API pricing](https://platform.openai.com/pricing). Groq bills a minimum of 10 seconds per request on paid usage.
 
 ## Tech Stack
 

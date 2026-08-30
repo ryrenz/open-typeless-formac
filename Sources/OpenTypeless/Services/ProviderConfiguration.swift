@@ -89,15 +89,15 @@ extension APIProvider {
                 defaultBasePath: "/openai/v1",
                 modelOptions: [
                     APIModelOption(
-                        id: "whisper-large-v3-turbo",
-                        displayName: "whisper-large-v3-turbo (~$0.0007/min)"
+                        id: "whisper-large-v3",
+                        displayName: "whisper-large-v3 (~$0.0019/min; recommended)"
                     ),
                     APIModelOption(
-                        id: "whisper-large-v3",
-                        displayName: "whisper-large-v3 (~$0.0019/min)"
+                        id: "whisper-large-v3-turbo",
+                        displayName: "whisper-large-v3-turbo (~$0.0007/min; faster)"
                     ),
                 ],
-                defaultModel: "whisper-large-v3-turbo",
+                defaultModel: "whisper-large-v3",
                 formattingModel: "openai/gpt-oss-20b",
                 transcriptionPromptPolicy: .limited(maxCharacters: 200),
                 formattingTokenLimitPolicy: .maxCompletionTokens,
