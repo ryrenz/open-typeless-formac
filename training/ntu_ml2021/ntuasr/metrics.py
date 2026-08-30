@@ -53,8 +53,13 @@ def mixed_tokens(text: str) -> list[str]:
 
 def error_counts(reference: Sequence[str], hypothesis: Sequence[str]) -> ErrorCounts:
     """Compute minimum-edit substitutions, deletions, and insertions."""
-    if len(reference) > MAX_METRIC_TOKENS or len(hypothesis) > MAX_METRIC_TOKENS:
-        raise ValueError(f"Metrics are limited to {MAX_METRIC_TOKENS} tokens per transcript")
+    if len(reference) > MAX_METRIC_TOKENS:
+        raise ValueError(f"Metrics are limited to {MAX_METRIC_TOKENS} reference tokens")
+    # A hallucinating model may repeat itself far past the reference length.
+    # Score the bounded prefix exactly and charge every truncated token as an
+    # insertion, keeping memory bounded without crashing the evaluation.
+    overflow_insertions = max(0, len(hypothesis) - MAX_METRIC_TOKENS)
+    hypothesis = hypothesis[:MAX_METRIC_TOKENS]
 
     previous = [(column, 0, 0, column) for column in range(len(hypothesis) + 1)]
     for row, reference_token in enumerate(reference, start=1):
@@ -74,7 +79,9 @@ def error_counts(reference: Sequence[str], hypothesis: Sequence[str]) -> ErrorCo
         previous = current
 
     _, substitutions, deletions, insertions = previous[-1]
-    return ErrorCounts(substitutions, deletions, insertions, len(reference))
+    return ErrorCounts(
+        substitutions, deletions, insertions + overflow_insertions, len(reference)
+    )
 
 
 def cer(reference: str, hypothesis: str) -> ErrorCounts:

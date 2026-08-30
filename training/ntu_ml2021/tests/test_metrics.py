@@ -30,3 +30,21 @@ class MetricTests(unittest.TestCase):
         text = "a " * (MAX_METRIC_TOKENS + 1)
         with self.assertRaisesRegex(ValueError, "limited"):
             mer(text, text)
+
+
+class OverlongHypothesisTests(unittest.TestCase):
+    def test_rejects_overlong_reference(self) -> None:
+        from ntuasr.constants import MAX_METRIC_TOKENS
+        from ntuasr.metrics import error_counts
+
+        with self.assertRaisesRegex(ValueError, "reference tokens"):
+            error_counts(["a"] * (MAX_METRIC_TOKENS + 1), ["a"])
+
+    def test_charges_truncated_hypothesis_tokens_as_insertions(self) -> None:
+        from ntuasr.constants import MAX_METRIC_TOKENS
+        from ntuasr.metrics import error_counts
+
+        counts = error_counts(["a"], ["a"] * (MAX_METRIC_TOKENS + 7))
+        self.assertEqual(counts.substitutions, 0)
+        self.assertEqual(counts.deletions, 0)
+        self.assertEqual(counts.insertions, MAX_METRIC_TOKENS + 7 - 1)
