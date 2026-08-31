@@ -11,7 +11,7 @@ enum TranscriptionFormatter {
     1. Punctuation: English-only → English (,.!?); Chinese or mixed → Chinese（，。！？：；""）.
     2. Spacing: one space between CJK and adjacent Latin/digits (pangu). No spaces between CJK.
     3. Paragraphs: split at natural topic or sentence-group boundaries.
-    4. Lists: any enumeration (first/second, 第一/第二, 另外, also, etc.) → 1. 2. 3. one item per line.
+    4. Lists: any enumeration (first/second, ordinal markers, also, etc.) → 1. 2. 3. one item per line.
     """
 
     private static let minFormattingLength = 20

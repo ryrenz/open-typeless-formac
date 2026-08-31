@@ -1,124 +1,77 @@
 import ServiceManagement
 import SwiftUI
 
-// MARK: - Localization
-
-enum AppLanguage: String, CaseIterable {
-    case en = "en"
-    case zh = "zh"
-
-    var displayName: String {
-        switch self {
-        case .en: return "English"
-        case .zh: return "中文"
-        }
-    }
-
-    static var current: AppLanguage {
-        get {
-            let raw = UserDefaults.standard.string(forKey: "appLanguage") ?? "en"
-            return AppLanguage(rawValue: raw) ?? .en
-        }
-        set {
-            UserDefaults.standard.set(newValue.rawValue, forKey: "appLanguage")
-        }
-    }
-}
-
 struct L {
-    let lang: AppLanguage
-
     // Tabs
-    var hotkeys: String { lang == .zh ? "快捷键" : "Hotkeys" }
-    var dictionary: String { lang == .zh ? "词汇表" : "Dictionary" }
-    var history: String { lang == .zh ? "历史记录" : "History" }
-    var failedRecordings: String { lang == .zh ? "失败录音" : "Failed Recordings" }
+    var hotkeys: String { "Hotkeys" }
+    var dictionary: String { "Dictionary" }
+    var history: String { "History" }
+    var failedRecordings: String { "Failed Recordings" }
     var api: String { "API" }
-    var privacy: String { lang == .zh ? "隐私" : "Privacy" }
-    var test: String { lang == .zh ? "测试" : "Test" }
+    var privacy: String { "Privacy" }
+    var test: String { "Test" }
 
     // Permissions
-    var permissions: String { lang == .zh ? "权限" : "Permissions" }
-    var microphone: String { lang == .zh ? "麦克风" : "Microphone" }
-    var accessibility: String { lang == .zh ? "辅助功能" : "Accessibility" }
-    var grantAccess: String { lang == .zh ? "授权" : "Grant Access" }
-    var granted: String { lang == .zh ? "已授权" : "Granted" }
+    var permissions: String { "Permissions" }
+    var microphone: String { "Microphone" }
+    var accessibility: String { "Accessibility" }
+    var grantAccess: String { "Grant Access" }
+    var granted: String { "Granted" }
     var accessibilityHint: String {
-        lang == .zh
-            ? "如果重编译后权限反复失效，请先配置稳定的本地签名。README 里有具体说明。"
-            : "If permission keeps resetting after rebuilds, configure stable local signing first. See README."
+        "If permission keeps resetting after rebuilds, configure stable local signing first. See README."
     }
 
     // Hotkey
-    var hotkey: String { lang == .zh ? "快捷键" : "Hotkey" }
-    var transcribe: String { lang == .zh ? "转写：" : "Transcribe:" }
+    var hotkey: String { "Hotkey" }
+    var transcribe: String { "Transcribe:" }
     var hotkeyHint: String {
-        lang == .zh
-            ? "默认：右 Option (Alt)。按一下开始，再按停止。双击取消。"
-            : "Default: Right Option (Alt). Press once to start, press again to stop. Double-press to cancel."
+        "Default: Right Option (Alt). Press once to start, press again to stop. Double-press to cancel."
     }
 
     // General
-    var general: String { lang == .zh ? "通用" : "General" }
-    var launchAtLogin: String { lang == .zh ? "登录时启动" : "Launch at Login" }
-    var language: String { lang == .zh ? "语言" : "Language" }
+    var general: String { "General" }
+    var launchAtLogin: String { "Launch at Login" }
 
     // API
-    var provider: String { lang == .zh ? "服务商" : "Provider" }
+    var provider: String { "Provider" }
     var apiKey: String { "API Key" }
-    var model: String { lang == .zh ? "模型" : "Model" }
+    var model: String { "Model" }
     var customHint: String {
-        lang == .zh
-            ? "必须是 OpenAI 兼容的 API 端点"
-            : "Must be an OpenAI-compatible API endpoint"
+        "Must be an OpenAI-compatible API endpoint"
     }
     var customModelHint: String {
-        lang == .zh
-            ? "填写该服务商提供的模型 ID"
-            : "Enter the model ID provided by the service"
+        "Enter the model ID provided by the service"
     }
     var apiKeySaved: String {
-        lang == .zh
-            ? "API Key 已安全保存在 macOS Keychain。输入新 Key 可替换。"
-            : "The API key is stored securely in macOS Keychain. Enter a new key to replace it."
+        "The API key is stored securely in macOS Keychain. Enter a new key to replace it."
     }
     var apiKeyMissing: String {
-        lang == .zh
-            ? "API Key 仅保存在这台 Mac 的 Keychain 中。"
-            : "The API key is stored only in Keychain on this Mac."
+        "The API key is stored only in Keychain on this Mac."
     }
-    var deleteAPIKey: String { lang == .zh ? "删除 API Key" : "Delete API Key" }
+    var deleteAPIKey: String { "Delete API Key" }
     var deleteAPIKeyConfirmation: String {
-        lang == .zh
-            ? "删除后，在输入新的 API Key 之前无法转写。"
-            : "Transcription will be unavailable until you save a new API key."
+        "Transcription will be unavailable until you save a new API key."
     }
-    var cancel: String { lang == .zh ? "取消" : "Cancel" }
-    var dataProcessing: String { lang == .zh ? "数据处理" : "Data Processing" }
+    var cancel: String { "Cancel" }
+    var dataProcessing: String { "Data Processing" }
     var dataProcessingDisclosure: String {
-        lang == .zh
-            ? "转写时，录音、词典提示和生成的文本会发送到下方端点。OpenTypeless 开发者不会接收这些内容；服务商可能按其隐私政策处理或保留数据。"
-            : "During transcription, audio, dictionary hints, and generated text are sent to the endpoint below. The OpenTypeless developer does not receive this content; the provider may process or retain it under its own privacy policy."
+        "During transcription, audio, dictionary hints, and generated text are sent to the endpoint below. The OpenTypeless developer does not receive this content; the provider may process or retain it under its own privacy policy."
     }
     var dataProcessingConsent: String {
-        lang == .zh
-            ? "我了解并同意向所选服务商发送这些数据"
-            : "I understand and agree to send this data to the selected provider"
+        "I understand and agree to send this data to the selected provider"
     }
 
     // Test
-    var recording: String { lang == .zh ? "录音" : "Recording" }
-    var result: String { lang == .zh ? "结果" : "Result" }
-    var status: String { lang == .zh ? "状态：" : "Status:" }
+    var recording: String { "Recording" }
+    var result: String { "Result" }
+    var status: String { "Status:" }
     var testHint: String {
-        lang == .zh
-            ? "按快捷键开始录音，再按一下停止。"
-            : "Press your hotkey to start recording, press again to stop."
+        "Press your hotkey to start recording, press again to stop."
     }
 
     // Common
-    var save: String { lang == .zh ? "保存" : "Save" }
-    var saved: String { lang == .zh ? "已保存！" : "Saved!" }
+    var save: String { "Save" }
+    var saved: String { "Saved!" }
 }
 
 // MARK: - Settings Tabs
@@ -155,9 +108,7 @@ struct MainWindowView: View {
     let hotkeyManager: HotkeyManager
     @ObservedObject var navigation: SettingsNavigation
 
-    @State private var appLanguage: AppLanguage = AppLanguage.current
-
-    private var l: L { L(lang: appLanguage) }
+    private let l = L()
 
     var body: some View {
         Group {
@@ -171,14 +122,6 @@ struct MainWindowView: View {
                 )
             } else {
                 settingsView
-            }
-        }
-        .safeAreaInset(edge: .top, alignment: .trailing) {
-            if navigation.setupRequirement != nil {
-                languagePicker
-                    .frame(width: 150)
-                    .padding(.horizontal, 18)
-                    .padding(.top, 8)
             }
         }
         .frame(width: 680, height: 600)
@@ -198,12 +141,6 @@ struct MainWindowView: View {
                     Label(tab.label(l), systemImage: tabIcon(tab))
                 }
                 .listStyle(.sidebar)
-
-                Divider()
-
-                languagePicker
-                .padding(.horizontal, 12)
-                .padding(.bottom, 8)
             }
             .navigationSplitViewColumnWidth(min: 140, ideal: 160)
         } detail: {
@@ -212,11 +149,11 @@ struct MainWindowView: View {
                 HotkeysTabView(hotkeyManager: hotkeyManager, l: l)
                     .environmentObject(permissionManager)
             case .dictionary:
-                DictionaryTabView(l: l)
+                DictionaryTabView()
             case .history:
-                HistoryTabView(l: l)
+                HistoryTabView()
             case .failedRecordings:
-                PendingTranscriptionsTabView(l: l)
+                PendingTranscriptionsTabView()
             case .api:
                 APITabView(
                     l: l,
@@ -229,24 +166,12 @@ struct MainWindowView: View {
                     }
                 )
             case .privacy:
-                PrivacyTabView(l: l)
+                PrivacyTabView()
             case .test:
                 TestTabView(l: l)
                     .environmentObject(appState)
                     .environmentObject(coordinator)
             }
-        }
-    }
-
-    private var languagePicker: some View {
-        Picker("", selection: $appLanguage) {
-            ForEach(AppLanguage.allCases, id: \.self) { lang in
-                Text(lang.displayName).tag(lang)
-            }
-        }
-        .pickerStyle(.segmented)
-        .onChange(of: appLanguage) { _, newValue in
-            AppLanguage.current = newValue
         }
     }
 
@@ -278,13 +203,9 @@ private struct SetupGateView: View {
                     Image(systemName: "checkmark.circle.fill")
                         .font(.system(size: 52))
                         .foregroundStyle(.green)
-                    Text(l.lang == .zh ? "设置完成" : "Setup complete")
+                    Text("Setup complete")
                         .font(.title2.weight(.semibold))
-                    Text(
-                        l.lang == .zh
-                            ? "现在可以使用快捷键开始语音输入。"
-                            : "You can now use the hotkey to start dictating."
-                    )
+                    Text("You can now use the hotkey to start dictating.")
                     .foregroundStyle(.secondary)
                 }
                 .transition(.opacity.combined(with: .scale(scale: 0.96)))
@@ -460,7 +381,7 @@ struct APITabView: View {
                 if isSetupMode {
                     VStack(alignment: .leading, spacing: 6) {
                         Label(
-                            l.lang == .zh ? "完成 OpenTypeless 设置" : "Finish setting up OpenTypeless",
+                            "Finish setting up OpenTypeless",
                             systemImage: "waveform.and.mic"
                         )
                         .font(.title2.weight(.semibold))
@@ -527,11 +448,7 @@ struct APITabView: View {
                             .font(.caption2)
                             .foregroundStyle(.secondary)
                         if configurationRecoveryRequired {
-                            Text(
-                                l.lang == .zh
-                                    ? "已保存的配置无法读取。请输入新的 API Key 并保存，或重置已保存配置。"
-                                    : "The saved configuration cannot be read. Enter a new API key and save, or reset the saved configuration."
-                            )
+                            Text("The saved configuration cannot be read. Enter a new API key and save, or reset the saved configuration.")
                             .font(.caption2)
                             .foregroundStyle(.red)
                         }
@@ -577,7 +494,7 @@ struct APITabView: View {
                                 .font(.title2)
                                 .foregroundStyle(Color.accentColor)
                             VStack(alignment: .leading, spacing: 2) {
-                                Text(l.lang == .zh ? "录音将发送到" : "Audio will be sent to")
+                                Text("Audio will be sent to")
                                     .font(.caption)
                                     .foregroundStyle(.secondary)
                                 Text(dataProcessingEndpoint.displayAddress)
@@ -592,11 +509,7 @@ struct APITabView: View {
                             in: RoundedRectangle(cornerRadius: 10, style: .continuous)
                         )
 
-                        Text(
-                            l.lang == .zh
-                                ? "首次使用新的 Provider 或地址时需要确认；切回已批准的相同地址会自动恢复同意。"
-                                : "A new provider or address requires confirmation. Returning to the exact same approved address restores consent automatically."
-                        )
+                        Text("A new provider or address requires confirmation. Returning to the exact same approved address restores consent automatically.")
                         .font(.caption)
                         .foregroundStyle(.secondary)
 
@@ -610,13 +523,11 @@ struct APITabView: View {
                         .toggleStyle(.checkbox)
                         .font(.callout.weight(.medium))
 
-                        PrivacyPolicyButton(l: l)
+                        PrivacyPolicyButton()
 
                         if !isSetupMode {
                             Button(
-                                l.lang == .zh
-                                    ? "撤销所有已保存的数据处理同意"
-                                    : "Revoke consent for all saved destinations",
+                                "Revoke consent for all saved destinations",
                                 role: .destructive
                             ) {
                                 revokeAllDataProcessingConsent()
@@ -689,9 +600,7 @@ struct APITabView: View {
                 hasDataProcessingConsent = false
                 configurationRecoveryRequired = true
                 showStatus(
-                    l.lang == .zh
-                        ? "已保存的配置损坏或来自较新版本，请输入新的 API Key 保存，或重置配置。"
-                        : "The saved configuration is damaged or from a newer version. Enter a new API key and save, or reset it.",
+                    "The saved configuration is damaged or from a newer version. Enter a new API key and save, or reset it.",
                     failed: true
                 )
             } catch {
@@ -705,9 +614,7 @@ struct APITabView: View {
         let endpoint = dataProcessingEndpoint
         guard endpoint.isValid else {
             showStatus(
-                l.lang == .zh
-                    ? "Custom endpoint 无效。Host 只能填写域名或 IP，路径请单独填写。"
-                    : "Invalid custom endpoint. Enter only a domain or IP in Host and put the path separately.",
+                "Invalid custom endpoint. Enter only a domain or IP in Host and put the path separately.",
                 failed: true
             )
             return
@@ -715,9 +622,7 @@ struct APITabView: View {
         let trimmedModel = selectedModel.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmedModel.isEmpty else {
             showStatus(
-                l.lang == .zh
-                    ? "Model ID 不能为空。"
-                    : "Model ID cannot be empty.",
+                "Model ID cannot be empty.",
                 failed: true
             )
             return
@@ -793,9 +698,7 @@ struct APITabView: View {
                     showStatus(l.saved, failed: false)
                 } else {
                     showStatus(
-                        l.lang == .zh
-                            ? "设置已保存；同意数据处理后才能转写。"
-                            : "Settings saved; consent is required before transcription.",
+                        "Settings saved; consent is required before transcription.",
                         failed: false
                     )
                 }
@@ -827,16 +730,11 @@ struct APITabView: View {
                 onConfigurationChanged(.apiKeyMissing)
                 if result.legacyCleanupErrorDescription != nil {
                     showStatus(
-                        l.lang == .zh
-                            ? "当前 API Key 已删除，但旧版 Keychain 副本暂未清理；App 会自动重试。"
-                            : "The active API key was deleted, but a legacy Keychain copy could not be cleaned up yet. The app will retry automatically.",
+                        "The active API key was deleted, but a legacy Keychain copy could not be cleaned up yet. The app will retry automatically.",
                         failed: true
                     )
                 } else {
-                    showStatus(
-                        l.lang == .zh ? "API Key 已删除。" : "API key deleted.",
-                        failed: false
-                    )
+                    showStatus("API key deleted.", failed: false)
                 }
             } catch {
                 showStatus(error.localizedDescription, failed: true)
@@ -890,19 +788,17 @@ struct APITabView: View {
     }
 
     private var continueLabel: String {
-        l.lang == .zh ? "同意并继续" : "Agree and continue"
+        "Agree and continue"
     }
 
     private var deleteKeyLabel: String {
         guard configurationRecoveryRequired else { return l.deleteAPIKey }
-        return l.lang == .zh ? "重置已保存配置" : "Reset saved configuration"
+        return "Reset saved configuration"
     }
 
     private var deleteKeyConfirmation: String {
         guard configurationRecoveryRequired else { return l.deleteAPIKeyConfirmation }
-        return l.lang == .zh
-            ? "这会删除无法读取的配置、API Key，并撤销所有已保存的数据处理同意。"
-            : "This removes the unreadable configuration and API key, and revokes all saved data-processing consent."
+        return "This removes the unreadable configuration and API key, and revokes all saved data-processing consent."
     }
 
     private var canCompleteSetup: Bool {
@@ -923,21 +819,13 @@ struct APITabView: View {
         guard case .setup(let requirement) = mode else { return "" }
         switch requirement {
         case .apiKeyMissing:
-            return l.lang == .zh
-                ? "添加 API Key 并确认录音发送位置后才能开始使用。"
-                : "Add an API key and confirm where audio is sent before using dictation."
+            return "Add an API key and confirm where audio is sent before using dictation."
         case .credentialStoreUnavailable(let detail):
-            return l.lang == .zh
-                ? "暂时无法访问 Keychain：\(detail)"
-                : "Keychain is temporarily unavailable: \(detail)"
+            return "Keychain is temporarily unavailable: \(detail)"
         case .invalidEndpoint:
-            return l.lang == .zh
-                ? "当前自定义地址无效，请修正后继续。"
-                : "The current custom endpoint is invalid. Correct it to continue."
+            return "The current custom endpoint is invalid. Correct it to continue."
         case .dataProcessingConsentRequired:
-            return l.lang == .zh
-                ? "确认当前数据接收方后即可继续使用语音输入。"
-                : "Confirm the current data recipient to continue using dictation."
+            return "Confirm the current data recipient to continue using dictation."
         }
     }
 }

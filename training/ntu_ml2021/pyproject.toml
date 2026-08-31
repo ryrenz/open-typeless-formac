@@ -1,0 +1,15 @@
+[project]
+name = "opentypeless-ntu-ml2021-experiment"
+version = "0.1.0"
+description = "Reproducible Whisper LoRA experiment for Mandarin-English lecture ASR"
+requires-python = ">=3.11,<3.13"
+dependencies = [
+  "accelerate==1.10.1",
+  "datasets==3.6.0",
+  "librosa==0.11.0",
+  "opencc-python-reimplemented==0.1.7",
+  "peft==0.15.2",
+  "soundfile==0.13.1",
+  "torch==2.6.0",
+  "transformers==4.52.4",
+]

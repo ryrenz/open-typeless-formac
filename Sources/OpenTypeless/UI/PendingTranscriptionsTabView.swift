@@ -2,7 +2,6 @@ import AppKit
 import SwiftUI
 
 struct PendingTranscriptionsTabView: View {
-    let l: L
     let store: PendingTranscriptionStore
 
     @State private var items: [PendingTranscriptionItem] = []
@@ -10,8 +9,7 @@ struct PendingTranscriptionsTabView: View {
     @State private var showsClearConfirmation = false
     @State private var errorMessage: String?
 
-    init(l: L, store: PendingTranscriptionStore = .shared) {
-        self.l = l
+    init(store: PendingTranscriptionStore = .shared) {
         self.store = store
     }
 
@@ -176,31 +174,25 @@ struct PendingTranscriptionsTabView: View {
         return "\(filename) · \(ByteCountFormatter.string(fromByteCount: audioByteCount, countStyle: .file))"
     }
 
-    private var title: String { l.lang == .zh ? "失败录音" : "Failed Recordings" }
+    private var title: String { "Failed Recordings" }
     private var description: String {
-        l.lang == .zh
-            ? "转写请求开始后若失败，原始录音会保存在本机。你可以在 Finder 中查看，或在这里永久删除。"
-            : "If transcription fails after a request starts, the original recording is kept on this Mac. Reveal it in Finder or permanently delete it here."
+        "If transcription fails after a request starts, the original recording is kept on this Mac. Reveal it in Finder or permanently delete it here."
     }
     private var emptyState: String {
-        l.lang == .zh ? "没有待处理的失败录音。" : "No failed recordings are pending."
+        "No failed recordings are pending."
     }
     private var itemCountLabel: String {
-        l.lang == .zh ? "\(items.count) 份本地录音" : "\(items.count) local recordings"
+        "\(items.count) local recordings"
     }
-    private var revealLabel: String { l.lang == .zh ? "在 Finder 显示" : "Reveal in Finder" }
-    private var deleteLabel: String { l.lang == .zh ? "删除录音" : "Delete Recording" }
-    private var clearAllLabel: String { l.lang == .zh ? "全部删除" : "Delete All" }
-    private var cancelLabel: String { l.lang == .zh ? "取消" : "Cancel" }
+    private var revealLabel: String { "Reveal in Finder" }
+    private var deleteLabel: String { "Delete Recording" }
+    private var clearAllLabel: String { "Delete All" }
+    private var cancelLabel: String { "Cancel" }
     private var deleteConfirmation: String {
-        l.lang == .zh
-            ? "该录音及其恢复信息将从本机永久删除。"
-            : "This recording and its recovery metadata will be permanently deleted from this Mac."
+        "This recording and its recovery metadata will be permanently deleted from this Mac."
     }
     private var clearAllConfirmation: String {
-        l.lang == .zh
-            ? "所有失败录音及恢复信息都将从本机永久删除，此操作无法撤销。"
-            : "All failed recordings and recovery metadata will be permanently deleted from this Mac. This cannot be undone."
+        "All failed recordings and recovery metadata will be permanently deleted from this Mac. This cannot be undone."
     }
 
     private static let dateFormatter: DateFormatter = {

@@ -16,13 +16,13 @@
 - **进度浮窗**：屏幕底部居中显示录音/转写状态和实时音量
 - **双击取消**：快速按两下快捷键取消录音
 - **多 Provider 与模型**：内置 OpenAI、Groq、Mistral 预设，也支持自定义 OpenAI 兼容端点；Groq 音频请求兼容不接受 SDK 默认 `stream=false` 的端点
-- **多语言转写**：Groq `whisper-large-v3-turbo` / `whisper-large-v3`，Mistral `voxtral-mini-latest`，以及 OpenAI 转写模型
+- **多语言转写**：Groq `whisper-large-v3`（推荐默认）/ `whisper-large-v3-turbo`，Mistral `voxtral-mini-latest`，以及 OpenAI 转写模型
 - **智能排版**：转写结果自动后处理——中文或中英混合内容使用中文标点，纯英文使用英文标点；中文与英文/数字之间自动加空格（pangu 风格）；自然段落分行；口述的列举内容转换为编号列表（1. 2. 3.）。
 - **词汇表**：添加容易被误识别的专有名词（产品名、人名、术语等），在支持提示词的 Provider 上帮助模型优先使用正确拼写；并过滤掉模型在静默时对词汇表词的幻听输出。
 - **历史记录**：可浏览、复制、单条删除、全部清空，并可选择本地保留策略。
 - **失败录音恢复**：网络/API 失败时保留原始录音，可在设置中通过 Finder 查看、单条删除或全部删除。
 - **崩溃安全的私密配置**：开发版与发布版都把 API Key、Provider、endpoint 和模型作为一个版本化配置，原子保存到 macOS Keychain。
-- **中英文界面**：设置中可切换界面语言
+- **英文界面**：应用界面与内置产品文案统一使用英文
 
 ## 快速开始
 
@@ -55,6 +55,8 @@ API 配置不完整时，OpenTypeless 会在启动后直接打开必需设置。
 
 API Key 获取地址：[OpenAI](https://platform.openai.com/api-keys)、[Groq](https://console.groq.com/keys)、[Mistral](https://console.mistral.ai/api-keys)
 
+**Groq 推荐：** 新的 Groq 配置默认使用 `whisper-large-v3`，因为它更优先保证多语言准确度。目前 Groq Free tier 对 `whisper-large-v3` 和 `whisper-large-v3-turbo` 提供相同限额：每分钟 20 次、每天 2,000 次、每小时 7,200 秒音频、每天 28,800 秒音频。因此在重视准确度时，`large-v3` 更适合作为默认模型。这是有速率限制的免费使用，并不是无限额度；具体限额请以 Groq [最新官方限制](https://console.groq.com/docs/rate-limits) 为准。
+
 App 不读取环境变量中的 API Key。开发测试与普通用户使用完全相同的 App → Keychain 路径。设置保存即使中途被强退，也只会保留完整旧快照或完整新快照，不会出现新 Key 与旧 endpoint 混用。
 
 如果已保存配置损坏，或由更高版本的 App 写入，必需设置页会停止转写并提供明确的重置或覆盖入口，不会使用回退地址发送录音。
@@ -77,7 +79,7 @@ App 不读取环境变量中的 API Key。开发测试与普通用户使用完�
 
 ## 费用估算
 
-应用内置 OpenAI、Groq、Mistral 三类转写模型。新用户可直接选择 Groq 作为低成本选项；已有配置不会被发布升级自动覆盖。
+应用内置 OpenAI、Groq、Mistral 三类转写模型。新用户默认选择 Groq `whisper-large-v3` 作为免费层准确度优先的选项；如果更看重速度或未来的付费成本，仍可切换到 `whisper-large-v3-turbo`。已有 Provider 和模型配置不会被发布升级自动覆盖。
 
 | 使用量 | 费用（美元） | 费用（人民币） |
 |--------|-------------|---------------|
@@ -93,11 +95,11 @@ App 不读取环境变量中的 API Key。开发测试与普通用户使用完�
 | gpt-4o-mini-transcribe | $0.003 | 很好（OpenAI 默认） |
 | gpt-4o-transcribe | $0.006 | 最好 |
 | whisper-1 | $0.006 | 好 |
-| Groq whisper-large-v3-turbo | 约 $0.0007 | 很快，多语言 |
-| Groq whisper-large-v3 | 约 $0.0019 | 多语言，准确度优先 |
+| Groq whisper-large-v3 | 约 $0.0019 | 推荐默认，多语言，准确度优先 |
+| Groq whisper-large-v3-turbo | 约 $0.0007 | 更快，付费使用更便宜 |
 | Mistral voxtral-mini-latest | $0.003 | 多语言 |
 
-Groq Turbo 约为 `gpt-4o-mini-transcribe` 的 22%，每小时约 $0.04；Mistral 与 OpenAI mini 目前都是约 $0.003/分钟。价格会变化，请以 [Groq 官方模型价格](https://console.groq.com/docs/models)、[Mistral 官方 API 定价](https://mistral.ai/pricing/api/) 和 [OpenAI 官方 API 定价](https://platform.openai.com/pricing) 为准。Groq 每次请求最低按 10 秒计费。
+Groq `whisper-large-v3` 优先准确度；Turbo 更快，付费使用约为每小时 $0.04，成本约低至前者的 36%。Mistral 与 OpenAI mini 目前都是约 $0.003/分钟。价格和免费层限额都会变化，请以 Groq [官方语音转写说明](https://console.groq.com/docs/speech-to-text)、[模型价格](https://console.groq.com/docs/models) 与 [速率限制](https://console.groq.com/docs/rate-limits)，以及 [Mistral 官方 API 定价](https://mistral.ai/pricing/api/) 和 [OpenAI 官方 API 定价](https://platform.openai.com/pricing) 为准。Groq 付费使用每次请求最低按 10 秒计费。
 
 ## 技术栈
 

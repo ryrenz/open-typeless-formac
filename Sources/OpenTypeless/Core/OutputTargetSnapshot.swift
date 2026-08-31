@@ -2,12 +2,15 @@ import ApplicationServices
 import Foundation
 
 struct OutputTargetSnapshot {
+    private static let accessibilityMessagingTimeout: Float = 0.5
+
     let focusedElement: AXUIElement?
     let appPID: pid_t?
     private let createdAt = Date()
 
     static func capture() -> OutputTargetSnapshot {
         let systemWide = AXUIElementCreateSystemWide()
+        AXUIElementSetMessagingTimeout(systemWide, accessibilityMessagingTimeout)
         var focusedApp: AnyObject?
         let appResult = AXUIElementCopyAttributeValue(systemWide, kAXFocusedApplicationAttribute as CFString, &focusedApp)
 
@@ -18,6 +21,7 @@ struct OutputTargetSnapshot {
         }
 
         let appElement = app as! AXUIElement
+        AXUIElementSetMessagingTimeout(appElement, accessibilityMessagingTimeout)
 
         var pid: pid_t = 0
         AXUIElementGetPid(appElement, &pid)
@@ -40,6 +44,7 @@ struct OutputTargetSnapshot {
 
     func isValid() -> Bool {
         guard let element = focusedElement else { return false }
+        AXUIElementSetMessagingTimeout(element, Self.accessibilityMessagingTimeout)
 
         var role: AnyObject?
         let result = AXUIElementCopyAttributeValue(element, kAXRoleAttribute as CFString, &role)
@@ -58,6 +63,7 @@ struct OutputTargetSnapshot {
 
     var hasTextInput: Bool {
         guard let element = focusedElement else { return false }
+        AXUIElementSetMessagingTimeout(element, Self.accessibilityMessagingTimeout)
 
         var role: AnyObject?
         let result = AXUIElementCopyAttributeValue(element, kAXRoleAttribute as CFString, &role)

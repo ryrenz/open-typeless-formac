@@ -7,10 +7,10 @@ final class AccessibilityHelperTests: XCTestCase {
         let result = AccessibilityHelper.replacingUTF16Range(
             in: "A😀B",
             range: CFRange(location: 1, length: 2),
-            with: "好"
+            with: "X"
         )
 
-        XCTAssertEqual(result.value, "A好B")
+        XCTAssertEqual(result.value, "AXB")
         XCTAssertEqual(result.caretLocation, 2)
     }
 
