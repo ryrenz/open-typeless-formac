@@ -101,6 +101,16 @@ OpenTypeless includes OpenAI, Groq, and Mistral transcription models. New users 
 
 Groq `whisper-large-v3` is optimized for accuracy, while Turbo is roughly 2.8x cheaper on paid usage at about $0.04/hour and is optimized for speed. Mistral and OpenAI mini are currently both about $0.003/minute. Prices and free-tier limits change; see Groq's [speech-to-text guidance](https://console.groq.com/docs/speech-to-text), [model prices](https://console.groq.com/docs/models), and [rate limits](https://console.groq.com/docs/rate-limits), plus [Mistral API pricing](https://mistral.ai/pricing/api/) and [OpenAI API pricing](https://platform.openai.com/pricing). Groq bills a minimum of 10 seconds per request on paid usage.
 
+## Fine-Tuned Local Model
+
+The repository includes a reproducible experiment that adapts multilingual
+Whisper-small to Mandarin-English code-switched technical speech with a rank-32
+LoRA adapter. On 11,919 held-out test utterances the adapter cuts the
+character error rate from 25.5% to 8.5%, and on in-domain speech it outperforms
+the 6x larger cloud-served `whisper-large-v3`. The 14 MB adapter is published
+at [https://huggingface.co/Creaturelove7/whisper-small-lora-ntu-ml2021](https://huggingface.co/Creaturelove7/whisper-small-lora-ntu-ml2021); the pinned training and
+evaluation pipeline lives in [`training/ntu_ml2021`](training/ntu_ml2021).
+
 ## Tech Stack
 
 | Layer | Technology |

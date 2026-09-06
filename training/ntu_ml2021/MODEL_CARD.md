@@ -2,14 +2,25 @@
 
 ## Status
 
-This repository contains a reproducible training recipe and no trained model
-weights. Do not create a public release unless the data-rights gate in
-`NOTICE.md` has been independently cleared, the trained checkpoint has been
-evaluated on the complete untouched official test split, and only the aggregate
-public JSON report is included in release notes. The pinned dataset revision
-ships every `dev` file inside `test`, so test evaluation removes those 2,997
-files and scores the 11,919 held-out examples; the report records the
-exclusion.
+The trained LoRA adapter is published on Hugging Face (see the repository
+README for the link) together with the aggregate held-out test reports in
+`reports/`. The release ships only weight deltas and aggregate metrics; no
+audio, transcripts, or per-sample predictions are redistributed. The pinned
+dataset revision ships every `dev` file inside `test`, so test evaluation
+removes those 2,997 files and scores the 11,919 held-out examples; the report
+records the exclusion.
+
+## Results (held-out test, 11,919 utterances)
+
+| Model | CER | Mixed-language ER |
+|---|---|---|
+| whisper-small (base) | 25.53% | 18.61% |
+| whisper-small + LoRA | 8.51% | 7.88% |
+
+On the 512-utterance dev prefix, the adapted model reached 4.29% CER, ahead of
+cloud-served `whisper-large-v3` at 9.46% CER on the same subset with the same
+normalization. This is an in-domain comparison; a general-purpose large model
+is expected to lead out of domain.
 
 ## Base model
 

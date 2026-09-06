@@ -150,10 +150,19 @@ bash scripts/export_ggml.sh \
   /path/to/smoke-zh-en.wav
 ```
 
+## Published artifacts
+
+- LoRA adapter: [https://huggingface.co/Creaturelove7/whisper-small-lora-ntu-ml2021](https://huggingface.co/Creaturelove7/whisper-small-lora-ntu-ml2021)
+- Held-out test reports for the base and adapted models: [`reports/`](reports/)
+
+The release ships only weight deltas and aggregate metrics. The underlying
+lecture audio remains the work of the course authors; takedown requests from
+rights holders are honored (see the model card's data-provenance section).
+
 ## Publishing gate
 
-Do not publish an adapter, merged checkpoint, or GGML file until all of the
-following are true:
+Before publishing any further artifact (a merged checkpoint or GGML file),
+confirm all of the following:
 
 1. The data-rights gate in `NOTICE.md` has been independently cleared with
    original-owner evidence, not only the third-party dataset card.

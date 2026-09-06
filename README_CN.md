@@ -101,6 +101,10 @@ App 不读取环境变量中的 API Key。开发测试与普通用户使用完�
 
 Groq `whisper-large-v3` 优先准确度；Turbo 更快，付费使用约为每小时 $0.04，成本约低至前者的 36%。Mistral 与 OpenAI mini 目前都是约 $0.003/分钟。价格和免费层限额都会变化，请以 Groq [官方语音转写说明](https://console.groq.com/docs/speech-to-text)、[模型价格](https://console.groq.com/docs/models) 与 [速率限制](https://console.groq.com/docs/rate-limits)，以及 [Mistral 官方 API 定价](https://mistral.ai/pricing/api/) 和 [OpenAI 官方 API 定价](https://platform.openai.com/pricing) 为准。Groq 付费使用每次请求最低按 10 秒计费。
 
+## 本地微调模型
+
+本仓库包含一个可复现实验:用 rank-32 LoRA 将多语言 Whisper-small 适配到中英混合的技术演讲语音。在 11,919 条 held-out 测试集上,字错误率从 25.5% 降到 8.5%;在领域内语音上超过体量为其 6 倍的云端 `whisper-large-v3`。14 MB 的 adapter 已发布于 [https://huggingface.co/Creaturelove7/whisper-small-lora-ntu-ml2021](https://huggingface.co/Creaturelove7/whisper-small-lora-ntu-ml2021),完整的版本锁定训练与评测管道在 [`training/ntu_ml2021`](training/ntu_ml2021)。
+
 ## 技术栈
 
 | 层级 | 技术 |
